@@ -33,50 +33,37 @@ ALV = Company(ticker="ALV", exchange="ASX", name="Alvo Minerals",
 
 
 class TestASXParsing(unittest.TestCase):
-    def test_official_json_parses_real_links_and_ps_flag(self):
-        payload = {"data": [
-            {"document_date": "2026-06-01T10:30:00+1000",
-             "url": "/asxpdf/20260601/pdf/abc.pdf",
-             "header": "Relatório Trimestral de Atividades",
-             "market_sensitive": True, "number_of_pages": 14},
-            {"document_date": "2026-05-19T09:00:00+1000",
-             "url": "https://cdn.example.com/x.pdf",
-             "header": "Appendix 3B - Emissão de novas ações",
-             "market_sensitive": False, "number_of_pages": 2},
-        ]}
-        with mock.patch("sources.asx.http_util.get", return_value=FakeResp(payload)):
-            anns = ASXSource()._fetch_official_json(ALV)
-
-        self.assertEqual(len(anns), 2)
-        a0 = anns[0]
-        # link relativo vira absoluto (link DIRETO para o comunicado)
-        self.assertEqual(a0.url, "https://www.asx.com.au/asxpdf/20260601/pdf/abc.pdf")
-        self.assertTrue(a0.url.startswith("https://"))
-        self.assertTrue(a0.price_sensitive)
-        self.assertEqual(a0.date, dt.date(2026, 6, 1))
-        self.assertEqual(a0.doc_type, "Trimestral")
-        # segundo: link absoluto preservado, classificacao Appendix 3B
-        self.assertEqual(anns[1].url, "https://cdn.example.com/x.pdf")
-        self.assertEqual(anns[1].doc_type, "Appendix 3B")
-        self.assertFalse(anns[1].price_sensitive)
-
-    def test_markit_parses_items_and_builds_links(self):
+    def test_markit_parses_real_schema_and_builds_pdf_links(self):
+        # esquema real confirmado pelo diagnostico em CI
         payload = {"data": {"items": [
-            {"documentDate": "2026-06-01T10:30:00+10:00",
+            {"date": "2026-05-29T03:24:37.000Z",
+             "documentKey": "2924-03095208-3A694298",
              "headline": "Quarterly Activities Report",
-             "isSensitive": True, "pageCount": 14,
-             "url": "https://announcements.asx.com.au/asxpdf/x.pdf"},
-            {"documentDate": "2026-05-19T09:00:00+10:00",
-             "headline": "Investor Presentation", "isSensitive": False,
-             "id": "02812345"},  # sem url -> constroi link do visualizador
+             "announcementType": "QUARTERLY REPORT",
+             "isPriceSensitive": True, "url": ""},
+            {"date": "2026-05-19T09:00:00.000Z",
+             "documentKey": "2924-9999",
+             "headline": "General Company Update", "announcementType": "ADMINISTRATIVE",
+             "isPriceSensitive": False,
+             "url": "https://cdn.example.com/ready.pdf"},
         ]}}
         with mock.patch("sources.asx.http_util.get", return_value=FakeResp(payload)):
             anns = ASXSource()._fetch_markit(ALV)
+
         self.assertEqual(len(anns), 2)
-        self.assertEqual(anns[0].url, "https://announcements.asx.com.au/asxpdf/x.pdf")
-        self.assertTrue(anns[0].price_sensitive)
-        self.assertEqual(anns[0].doc_type, "Trimestral")
-        self.assertIn("displayAnnouncement.do?display=pdf&idsId=02812345", anns[1].url)
+        a0 = anns[0]
+        # sem url -> constroi o link DIRETO de PDF do markit (HTTP 200 application/pdf)
+        self.assertEqual(
+            a0.url,
+            "https://asx.api.markitdigital.com/asx-research/1.0/file/"
+            "2924-03095208-3A694298?access_token=83ff96335c2d45a094df02a206a39ff4")
+        self.assertTrue(a0.price_sensitive)
+        self.assertEqual(a0.date, dt.date(2026, 5, 29))
+        self.assertEqual(a0.doc_type, "Trimestral")
+        # quando o item ja traz url pronta, ela e preservada; tipo via announcementType
+        self.assertEqual(anns[1].url, "https://cdn.example.com/ready.pdf")
+        self.assertEqual(anns[1].doc_type, "Administrative")
+        self.assertFalse(anns[1].price_sensitive)
 
     def test_fetch_falls_back_and_never_raises(self):
         # ambas as estrategias retornam vazio -> fetch retorna [] sem erro

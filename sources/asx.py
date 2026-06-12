@@ -25,7 +25,30 @@ log = logging.getLogger("ree")
 
 ASX_BASE = "https://www.asx.com.au"
 MARKIT_BASE = "https://asx.api.markitdigital.com"
+# Token publico embutido no proprio site da ASX para baixar os PDFs dos comunicados.
+MARKIT_TOKEN = "83ff96335c2d45a094df02a206a39ff4"
 DEFAULT_COUNT = 25
+
+
+def _markit_doc_url(item: dict) -> str:
+    """Link DIRETO para o PDF do comunicado (confirmado: HTTP 200 application/pdf)."""
+    url = (item.get("url") or "").strip()
+    if url:
+        return ASX_BASE + url if url.startswith("/") else url
+    key = item.get("documentKey") or item.get("id") or ""
+    if key:
+        return f"{MARKIT_BASE}/asx-research/1.0/file/{key}?access_token={MARKIT_TOKEN}"
+    return ""
+
+
+def _doc_type(item: dict, title: str) -> str:
+    """Tag do comunicado: classifica pelo titulo; usa announcementType se necessario."""
+    label = classify(title)
+    if label == "Comunicado":
+        atype = (item.get("announcementType") or "").strip()
+        if atype:
+            return atype.title()
+    return label
 
 
 def _parse_iso_date(value: str) -> Optional[dt.date]:
@@ -48,7 +71,7 @@ class ASXSource(Source):
     exchange = "ASX"
 
     def fetch(self, company: Company) -> list[Announcement]:
-        for strategy in (self._fetch_markit, self._fetch_official_json, self._fetch_rss):
+        for strategy in (self._fetch_markit, self._fetch_rss):
             try:
                 anns = strategy(company)
             except Exception as exc:  # noqa: BLE001 - estrategia isolada
@@ -77,65 +100,23 @@ class ASXSource(Source):
         items = data.get("items") or data.get("announcements") or []
         out: list[Announcement] = []
         for item in items:
-            date = _parse_iso_date(item.get("documentDate") or item.get("date") or "")
+            date = _parse_iso_date(item.get("date") or item.get("documentDate") or "")
             if date is None:
                 continue
             title = (item.get("headline") or item.get("header") or item.get("title") or "").strip()
-            doc_url = (item.get("url") or "").strip()
-            if not doc_url:
-                # constroi o link do visualizador a partir do id do documento
-                doc_id = item.get("id") or item.get("documentKey") or ""
-                if doc_id:
-                    doc_url = (f"{ASX_BASE}/asx/statistics/displayAnnouncement.do"
-                               f"?display=pdf&idsId={doc_id}")
-            if doc_url.startswith("/"):
-                doc_url = ASX_BASE + doc_url
             out.append(Announcement(
                 ticker=company.ticker,
                 exchange="ASX",
                 company_name=company.name,
                 date=date,
                 title=title,
-                url=doc_url or company.company_url,
-                price_sensitive=bool(item.get("isSensitive") or item.get("market_sensitive")),
-                doc_type=classify(title),
-                pages=item.get("pageCount") or item.get("number_of_pages"),
+                url=_markit_doc_url(item) or company.company_url,
+                price_sensitive=bool(item.get("isPriceSensitive") or item.get("isSensitive")),
+                doc_type=_doc_type(item, title),
             ))
         return out
 
-    # --- estrategia 2: API JSON legada ----------------------------------
-    def _fetch_official_json(self, company: Company) -> list[Announcement]:
-        url = (
-            f"{ASX_BASE}/asx/1/company/{company.ticker}/announcements"
-            f"?count={DEFAULT_COUNT}&market_sensitive=false"
-        )
-        resp = http_util.get(url, headers={"Accept": "application/json"})
-        if resp is None:
-            return []
-        data = resp.json().get("data", [])
-        out: list[Announcement] = []
-        for item in data:
-            date = _parse_iso_date(item.get("document_date") or item.get("date") or "")
-            if date is None:
-                continue
-            doc_url = item.get("url") or ""
-            if doc_url.startswith("/"):
-                doc_url = ASX_BASE + doc_url
-            title = (item.get("header") or item.get("title") or "").strip()
-            out.append(Announcement(
-                ticker=company.ticker,
-                exchange="ASX",
-                company_name=company.name,
-                date=date,
-                title=title,
-                url=doc_url or company.company_url,
-                price_sensitive=bool(item.get("market_sensitive")),
-                doc_type=classify(title),
-                pages=item.get("number_of_pages"),
-            ))
-        return out
-
-    # --- estrategia 3: RSS (fallback) -----------------------------------
+    # --- estrategia 2: RSS (fallback) -----------------------------------
     def _fetch_rss(self, company: Company) -> list[Announcement]:
         url = f"http://noisymime.org/asx/rss.php?code={company.ticker}"
         resp = http_util.get(url)
