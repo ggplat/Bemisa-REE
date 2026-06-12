@@ -25,6 +25,13 @@ log = logging.getLogger("ree")
 ROOT = os.path.dirname(os.path.abspath(__file__))
 OUTPUT = os.path.join(ROOT, "docs", "index.html")
 
+# Coletamos apenas publicacoes a partir desta data (janeiro de 2026).
+SINCE = dt.date(2026, 1, 1)
+
+
+def _filter_since(anns: list[Announcement]) -> list[Announcement]:
+    return [a for a in anns if a.date >= SINCE]
+
 
 def load_companies(path: str = None) -> list[Company]:
     path = path or os.path.join(ROOT, "companies.json")
@@ -48,6 +55,7 @@ def collect_live(companies: list[Company]) -> dict[str, list[Announcement]]:
             log.error("Falha ao coletar %s: %s", company.ticker, exc)
             anns = []
 
+        anns = _filter_since(anns)
         if anns:
             dates = [a.date for a in anns]
             wstart, wend = min(dates), max(dates)
@@ -65,7 +73,7 @@ def collect_live(companies: list[Company]) -> dict[str, list[Announcement]]:
 
 def collect_sample(companies: list[Company]) -> dict[str, list[Announcement]]:
     from sample import sample_announcements
-    return {c.ticker: sample_announcements(c) for c in companies}
+    return {c.ticker: _filter_since(sample_announcements(c)) for c in companies}
 
 
 def main(argv: list[str] = None) -> int:

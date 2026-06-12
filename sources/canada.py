@@ -19,8 +19,8 @@ from .base import Announcement, Company, Source
 
 log = logging.getLogger("ree")
 
-MAX_ITEMS = 25
-MAX_AGE_DAYS = 400
+MAX_ITEMS = 50
+MAX_AGE_DAYS = 800  # janela ampla; o corte final (desde jan/2026) e aplicado no ree_monitor
 
 _TYPE_LABEL = {
     "STORY": "Notícia",

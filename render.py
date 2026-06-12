@@ -68,12 +68,20 @@ def _build_company(company: Company, anns: list[Announcement], *, selected: bool
             "entries": items,
         })
 
+    projects = [
+        {"name": p.get("name", ""),
+         "tier": p.get("tier", "secundario"),
+         "is_main": p.get("tier", "secundario") == "principal"}
+        for p in (company.projects or [])
+    ]
+
     return {
         "ticker": company.ticker,
         "exchange": company.exchange,
         "exchange_lower": company.exchange.lower(),
         "name": company.name,
         "company_url": company.company_url,
+        "projects": projects,
         "count": len(anns),
         "selected": selected,
         "months": months,

@@ -27,7 +27,7 @@ ASX_BASE = "https://www.asx.com.au"
 MARKIT_BASE = "https://asx.api.markitdigital.com"
 # Token publico embutido no proprio site da ASX para baixar os PDFs dos comunicados.
 MARKIT_TOKEN = "83ff96335c2d45a094df02a206a39ff4"
-DEFAULT_COUNT = 25
+DEFAULT_COUNT = 100  # busca ampla; a filtragem por data (desde jan/2026) e feita depois
 
 
 def _markit_doc_url(item: dict) -> str:

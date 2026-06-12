@@ -13,6 +13,7 @@ class Company:
     name: str
     yf_symbol: str
     company_url: str
+    projects: list = field(default_factory=list)  # [{'name':..., 'tier':'principal'|'secundario'}]
 
 
 @dataclass
