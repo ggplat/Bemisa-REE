@@ -110,6 +110,36 @@ class TestRender(unittest.TestCase):
         self.assertEqual(ctx["n_ps"], 1)
 
 
+class TestCanada(unittest.TestCase):
+    def test_yahoo_news_parsing_and_age_filter(self):
+        from sources.canada import CanadaSource
+        comp = Company(ticker="EFR", exchange="TSX", name="Energy Fuels",
+                       yf_symbol="EFR.TO", company_url="https://money.tmx.com/en/quote/EFR")
+        today = dt.date.today().isoformat()
+        news = [
+            {"id": "1", "content": {
+                "contentType": "STORY", "title": "Energy Fuels production update",
+                "pubDate": today + "T11:03:57Z",
+                "canonicalUrl": {"url": "https://finance.yahoo.com/x.html"},
+                "provider": {"displayName": "Zacks"}}},
+            {"id": "2", "content": {  # muito antigo -> filtrado
+                "contentType": "VIDEO", "title": "Old item",
+                "pubDate": "2000-01-01T00:00:00Z",
+                "canonicalUrl": {"url": "https://finance.yahoo.com/old.html"}}},
+        ]
+        fake = mock.Mock()
+        fake.news = news
+        with mock.patch("yfinance.Ticker", return_value=fake):
+            anns = CanadaSource().fetch(comp)
+        self.assertEqual(len(anns), 1)
+        a = anns[0]
+        self.assertEqual(a.url, "https://finance.yahoo.com/x.html")
+        self.assertEqual(a.exchange, "TSX")
+        self.assertEqual(a.doc_type, "Notícia")
+        self.assertEqual(a.source, "Zacks")
+        self.assertIn("Zacks", a.tags)
+
+
 class TestSourceRouting(unittest.TestCase):
     def test_routing(self):
         from sources.asx import ASXSource as A

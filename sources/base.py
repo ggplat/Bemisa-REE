@@ -27,6 +27,7 @@ class Announcement:
     price_sensitive: bool = False
     doc_type: str = "Comunicado"      # tag principal (ex.: 'Trimestral', 'Appendix 3B')
     pages: Optional[int] = None
+    source: str = ""                  # origem/veiculo (ex.: 'Zacks', 'ASX') - vira tag
     pct_change: Optional[float] = None  # variacao % close-to-close no dia (None = sem dado)
 
     @property
@@ -34,6 +35,8 @@ class Announcement:
         out: list[str] = []
         if self.doc_type:
             out.append(self.doc_type)
+        if self.source:
+            out.append(self.source)
         if self.pages:
             out.append(f"{self.pages}p")
         return out
