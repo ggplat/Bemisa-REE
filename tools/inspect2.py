@@ -1,10 +1,9 @@
-"""Diagnostico v2: fontes historicas. Uso em CI: python tools/inspect2.py"""
+"""Diagnostico v3: ASX historico (v2 announcements.do) + TMX news (__NEXT_DATA__)."""
 from __future__ import annotations
 
 import json
 import re
 import sys
-from xml.etree import ElementTree as ET
 
 sys.path.insert(0, ".")
 from sources import http_util
@@ -13,54 +12,51 @@ from sources import http_util
 def hr(t): print(f"\n========== {t} ==========")
 
 
-def rss(url: str, label: str):
-    hr(label)
-    r = http_util.get(url)
+def asx_v2(code: str):
+    hr(f"ASX v2 announcements.do {code}")
+    url = (f"https://www.asx.com.au/asx/v2/statistics/announcements.do"
+           f"?by=asxCode&asxCode={code}&timeframe=D&period=M6")
+    r = http_util.get(url, headers={"Referer": "https://www.asx.com.au/"})
+    if r is None:
+        print("  sem resposta/bloqueado"); return
+    html = r.text
+    print("  HTML len", len(html))
+    rows = re.findall(r'displayAnnouncement\.do\?display=pdf&idsId=(\d+)', html)
+    print("  links displayAnnouncement:", len(rows), rows[:3])
+    # datas no formato dd/mm/yyyy
+    print("  datas:", re.findall(r'\d{2}/\d{2}/\d{4}', html)[:10])
+    print("  trecho:", re.sub(r'\s+', ' ', html[:400]))
+
+
+def tmx_news(code: str):
+    hr(f"TMX __NEXT_DATA__ news {code}")
+    r = http_util.get(f"https://money.tmx.com/en/quote/{code}/news")
     if r is None:
         print("  sem resposta"); return
-    try:
-        root = ET.fromstring(r.content)
-    except Exception as exc:  # noqa: BLE001
-        print("  parse erro:", exc, "| inicio:", r.text[:200]); return
-    items = list(root.iter("item"))
-    print(f"  n items: {len(items)}")
-    for it in items[:6]:
-        print("   -", (it.findtext('pubDate') or '')[:25], "|", (it.findtext('title') or '')[:70],
-              "|", (it.findtext('link') or '')[:70])
-    if items:
-        dates = [ (it.findtext('pubDate') or '') for it in items ]
-        print("  ultima data:", dates[-1][:25])
+    m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.S)
+    if not m:
+        print("  sem __NEXT_DATA__"); return
+    data = json.loads(m.group(1))
 
-
-def tmx_introspect(code: str):
-    hr(f"TMX GraphQL introspection / news {code}")
-    q = {"query": "{__schema{queryType{fields{name}}}}"}
-    try:
-        r = http_util.session().post("https://app-money.tmx.com/graphql", json=q, timeout=20,
-                                     headers={"locale": "en", "Origin": "https://money.tmx.com",
-                                              "Referer": "https://money.tmx.com/"})
-        if r.status_code == 200:
-            fields = [f["name"] for f in r.json()["data"]["__schema"]["queryType"]["fields"]]
-            print("  Query fields:", fields)
-            print("  campos c/ 'news':", [f for f in fields if 'news' in f.lower()])
-        else:
-            print("  introspection status", r.status_code, r.text[:300])
-    except Exception as exc:  # noqa: BLE001
-        print("  introspection erro:", exc)
-    # tenta achar news no __NEXT_DATA__ da pagina
-    r = http_util.get(f"https://money.tmx.com/en/quote/{code}/news")
-    if r is not None:
-        m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.S)
-        if m:
-            blob = m.group(1)
-            print("  __NEXT_DATA__ chaves c/ 'news'/'headline':",
-                  sorted(set(re.findall(r'"(\w*(?:news|headline|datetime|newsUrl)\w*)"', blob, re.I)))[:20])
-            mm = re.search(r'"(headline|title)":"([^"]{15,90})"', blob)
-            print("  exemplo:", mm.group(0) if mm else 'nenhum')
+    found = []
+    def walk(o, path=""):
+        if isinstance(o, dict):
+            keys = set(o.keys())
+            if ({'headline'} & keys or {'newsUrl'} & keys) and len(found) < 3:
+                found.append((path, o))
+            for k, v in o.items():
+                walk(v, path + "/" + k)
+        elif isinstance(o, list):
+            for i, v in enumerate(o[:3]):
+                walk(v, f"{path}[{i}]")
+    walk(data)
+    print("  itens c/ headline/newsUrl encontrados:", len(found))
+    for path, o in found:
+        print("  PATH:", path)
+        print("  KEYS:", list(o.keys()))
+        print("  SAMPLE:", json.dumps({k: o[k] for k in list(o)[:12]}, ensure_ascii=False, default=str)[:700])
 
 
 if __name__ == "__main__":
-    rss("http://noisymime.org/asx/rss.php?code=BRE", "NOISYMIME RSS BRE")
-    rss("https://appiareu.com/feed/", "APPIA RSS feed")
-    rss("https://appiareu.com/news/feed/", "APPIA RSS /news/feed")
-    tmx_introspect("ARA")
+    asx_v2("BRE")
+    tmx_news("ARA")
