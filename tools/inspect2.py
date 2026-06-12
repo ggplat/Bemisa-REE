@@ -1,7 +1,6 @@
-"""Diagnostico v3: ASX historico (v2 announcements.do) + TMX news (__NEXT_DATA__)."""
+"""Diagnostico v4: estrutura da linha do ASX v2 + tentativa REST de noticias TMX."""
 from __future__ import annotations
 
-import json
 import re
 import sys
 
@@ -12,51 +11,47 @@ from sources import http_util
 def hr(t): print(f"\n========== {t} ==========")
 
 
-def asx_v2(code: str):
-    hr(f"ASX v2 announcements.do {code}")
+def asx_row(code: str):
+    hr(f"ASX v2 linha {code}")
     url = (f"https://www.asx.com.au/asx/v2/statistics/announcements.do"
            f"?by=asxCode&asxCode={code}&timeframe=D&period=M6")
     r = http_util.get(url, headers={"Referer": "https://www.asx.com.au/"})
     if r is None:
-        print("  sem resposta/bloqueado"); return
-    html = r.text
-    print("  HTML len", len(html))
-    rows = re.findall(r'displayAnnouncement\.do\?display=pdf&idsId=(\d+)', html)
-    print("  links displayAnnouncement:", len(rows), rows[:3])
-    # datas no formato dd/mm/yyyy
-    print("  datas:", re.findall(r'\d{2}/\d{2}/\d{4}', html)[:10])
-    print("  trecho:", re.sub(r'\s+', ' ', html[:400]))
-
-
-def tmx_news(code: str):
-    hr(f"TMX __NEXT_DATA__ news {code}")
-    r = http_util.get(f"https://money.tmx.com/en/quote/{code}/news")
-    if r is None:
         print("  sem resposta"); return
-    m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', r.text, re.S)
-    if not m:
-        print("  sem __NEXT_DATA__"); return
-    data = json.loads(m.group(1))
+    html = r.text
+    # acha o primeiro link de anuncio e mostra a linha <tr> ao redor
+    for pat in ['displayAnnouncement', 'idsId', 'pdf']:
+        i = html.find(pat)
+        print(f"  primeira ocorrencia '{pat}': {i}")
+    # mostra o trecho da primeira data 2026 ate +600
+    m = re.search(r'<tr[^>]*>(?:(?!</tr>).){0,40}?\d{2}/\d{2}/2026', html, re.S)
+    if m:
+        start = m.start()
+        print("  TR amostra:", re.sub(r'\s+', ' ', html[start:start+700]))
+    else:
+        # fallback: trecho ao redor da primeira data
+        d = re.search(r'\d{2}/\d{2}/2026', html)
+        if d:
+            print("  trecho data:", re.sub(r'\s+', ' ', html[max(0,d.start()-300):d.start()+400]))
 
-    found = []
-    def walk(o, path=""):
-        if isinstance(o, dict):
-            keys = set(o.keys())
-            if ({'headline'} & keys or {'newsUrl'} & keys) and len(found) < 3:
-                found.append((path, o))
-            for k, v in o.items():
-                walk(v, path + "/" + k)
-        elif isinstance(o, list):
-            for i, v in enumerate(o[:3]):
-                walk(v, f"{path}[{i}]")
-    walk(data)
-    print("  itens c/ headline/newsUrl encontrados:", len(found))
-    for path, o in found:
-        print("  PATH:", path)
-        print("  KEYS:", list(o.keys()))
-        print("  SAMPLE:", json.dumps({k: o[k] for k in list(o)[:12]}, ensure_ascii=False, default=str)[:700])
+
+def tmx_rest(code: str):
+    hr(f"TMX REST news {code}")
+    for url in [
+        f"https://app-money.tmx.com/news?symbol={code}&locale=en",
+        f"https://app-money.tmx.com/api/news?symbol={code}",
+        f"https://app-money.tmx.com/symbol/{code}/news",
+    ]:
+        try:
+            r = http_util.session().get(url, timeout=15,
+                                        headers={"Accept": "application/json", "locale": "en",
+                                                 "Origin": "https://money.tmx.com",
+                                                 "Referer": "https://money.tmx.com/"})
+            print(f"  {url} -> {r.status_code} | {r.text[:160]}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"  {url} -> erro {exc}")
 
 
 if __name__ == "__main__":
-    asx_v2("BRE")
-    tmx_news("ARA")
+    asx_row("BRE")
+    tmx_rest("ARA")
