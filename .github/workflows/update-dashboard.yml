@@ -33,6 +33,9 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
+      - name: Testes (logica offline)
+        run: python -m unittest discover -s tests -v
+
       - name: Gerar dashboard (dados reais)
         run: python ree_monitor.py --dashboard -v
 
