@@ -14,7 +14,7 @@ comunicado). O dashboard é **gerado automaticamente** e cada linha de notícia
 ```
 ree_monitor.py        -> coleta comunicados + calcula a % + gera docs/index.html
 sources/              -> uma fonte por bolsa (interface comum, plugável)
-  asx.py              -> ASX: API JSON oficial -> RSS (fallback)
+  asx.py              -> ASX: markitdigital -> API JSON legada -> RSS (3 fontes)
   canada.py           -> TSX/CSE: SEDAR+ (melhor esforço)
 prices.py             -> Yahoo Finance (yfinance): variação % close-to-close
 companies.json        -> empresas monitoradas (edite aqui)
@@ -71,9 +71,10 @@ bolsa). Exemplo:
 
 ## Limitações e notas
 
-- **ASX** tem proteção anti-robô. Usamos a API oficial e, como reserva, RSS por
-  empresa. A partir do IP do GitHub Actions costuma funcionar; se uma fonte falhar,
-  a coleta das demais empresas continua normalmente.
+- **ASX** tem proteção anti-robô. Tentamos 3 fontes em ordem (markitdigital — a que o
+  próprio site asx.com.au usa hoje —, depois a API JSON legada e, por fim, RSS por
+  empresa). A primeira que responder vence. A partir do IP do GitHub Actions costuma
+  funcionar; se uma fonte falhar, a coleta das demais empresas continua normalmente.
 - **TSX/CSE** (ARA, EFR, API) são **melhor esforço** via SEDAR+ — sem API pública
   gratuita confiável. Se indisponível, a empresa aparece sem comunicados (sem quebrar
   a página). Para cobertura garantida dessas bolsas, integrar um provedor pago

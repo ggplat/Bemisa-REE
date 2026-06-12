@@ -60,6 +60,24 @@ class TestASXParsing(unittest.TestCase):
         self.assertEqual(anns[1].doc_type, "Appendix 3B")
         self.assertFalse(anns[1].price_sensitive)
 
+    def test_markit_parses_items_and_builds_links(self):
+        payload = {"data": {"items": [
+            {"documentDate": "2026-06-01T10:30:00+10:00",
+             "headline": "Quarterly Activities Report",
+             "isSensitive": True, "pageCount": 14,
+             "url": "https://announcements.asx.com.au/asxpdf/x.pdf"},
+            {"documentDate": "2026-05-19T09:00:00+10:00",
+             "headline": "Investor Presentation", "isSensitive": False,
+             "id": "02812345"},  # sem url -> constroi link do visualizador
+        ]}}
+        with mock.patch("sources.asx.http_util.get", return_value=FakeResp(payload)):
+            anns = ASXSource()._fetch_markit(ALV)
+        self.assertEqual(len(anns), 2)
+        self.assertEqual(anns[0].url, "https://announcements.asx.com.au/asxpdf/x.pdf")
+        self.assertTrue(anns[0].price_sensitive)
+        self.assertEqual(anns[0].doc_type, "Trimestral")
+        self.assertIn("displayAnnouncement.do?display=pdf&idsId=02812345", anns[1].url)
+
     def test_fetch_falls_back_and_never_raises(self):
         # ambas as estrategias retornam vazio -> fetch retorna [] sem erro
         with mock.patch("sources.asx.http_util.get", return_value=None):
