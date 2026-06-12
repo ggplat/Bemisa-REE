@@ -2,7 +2,7 @@
   "_comment": "Empresas monitoradas. 'projects' lista os projetos de terras-raras de cada empresa, com 'tier' = principal|secundario. 'yf_symbol' = simbolo no Yahoo Finance (usado na % de reacao). 'company_url' e o link 'abrir na bolsa'.",
   "companies": [
     {"ticker": "ALV", "exchange": "ASX", "name": "Alvo Minerals", "yf_symbol": "ALV.AX", "company_url": "https://www.asx.com.au/markets/company/ALV",
-     "projects": [{"name": "Bluebish", "tier": "secundario"}, {"name": "Ipora", "tier": "secundario"}]},
+     "projects": [{"name": "Bluebush", "tier": "secundario"}, {"name": "Ipora", "tier": "secundario"}]},
     {"ticker": "AUZ", "exchange": "ASX", "name": "Australian Mines", "yf_symbol": "AUZ.AX", "company_url": "https://www.asx.com.au/markets/company/AUZ",
      "projects": [{"name": "Resende", "tier": "secundario"}, {"name": "Jequié", "tier": "secundario"}]},
     {"ticker": "AXL", "exchange": "ASX", "name": "Axel Rare Earths", "yf_symbol": "AXL.AX", "company_url": "https://www.asx.com.au/markets/company/AXL",
@@ -30,10 +30,13 @@
     {"ticker": "VMM", "exchange": "ASX", "name": "Viridis Mining", "yf_symbol": "VMM.AX", "company_url": "https://www.asx.com.au/markets/company/VMM",
      "projects": [{"name": "Colossus", "tier": "principal"}]},
     {"ticker": "ARA", "exchange": "TSX", "name": "Aclara Resources", "yf_symbol": "ARA.TO", "company_url": "https://money.tmx.com/en/quote/ARA",
+     "news": {"type": "tmx", "symbol": "ARA"},
      "projects": [{"name": "Carina", "tier": "principal"}]},
     {"ticker": "EFR", "exchange": "TSX", "name": "Energy Fuels", "yf_symbol": "EFR.TO", "company_url": "https://money.tmx.com/en/quote/EFR",
+     "news": {"type": "yahoo", "symbol": "UUUU"},
      "projects": [{"name": "Bahia", "tier": "secundario"}]},
     {"ticker": "API", "exchange": "CSE", "name": "Appia Rare Earths & Uranium", "yf_symbol": "API.CN", "company_url": "https://thecse.com/en/listings?search=API",
+     "news": {"type": "appia", "url": "https://appiareu.com/news/"},
      "projects": [{"name": "PCH", "tier": "principal"}]}
   ]
 }

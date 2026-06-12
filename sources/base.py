@@ -14,6 +14,7 @@ class Company:
     yf_symbol: str
     company_url: str
     projects: list = field(default_factory=list)  # [{'name':..., 'tier':'principal'|'secundario'}]
+    news: dict = field(default_factory=dict)       # config da fonte de noticias (TSX/CSE)
 
 
 @dataclass
