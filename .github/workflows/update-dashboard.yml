@@ -1,0 +1,65 @@
+name: Atualizar dashboard
+
+# Roda automaticamente todo dia util (apos o fechamento de ASX e TSX) e tambem
+# pode ser disparado manualmente em Actions -> "Atualizar dashboard" -> Run workflow.
+on:
+  schedule:
+    - cron: "0 22 * * 1-5"   # 22:00 UTC, seg-sex (apos fechamento ASX e TSX)
+  workflow_dispatch:          # botao de execucao manual sob demanda
+
+# Necessario para commitar o HTML e publicar no GitHub Pages.
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update-dashboard
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Gerar dashboard (dados reais)
+        run: python ree_monitor.py --dashboard -v
+
+      - name: Commitar HTML atualizado (se mudou)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- docs/index.html; then
+            git add docs/index.html
+            git commit -m "chore: atualizar dashboard ($(date -u +%Y-%m-%d' '%H:%M' UTC'))"
+            git push
+          else
+            echo "Sem mudancas no dashboard."
+          fi
+
+      - name: Preparar artefato do Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publicar no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

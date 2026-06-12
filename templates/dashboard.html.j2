@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Monitor de Comunicados &middot; REE</title>
+<style>
+:root{
+  /* Bemisa - cores principais e secundarias (tema claro, padrao) */
+  --bg:#f4f5ef; --panel:#ffffff; --panel2:#eef1e6; --line:#e0e3d6;
+  --txt:#414042; --mut:#6f7168; --dim:#9a9c92;
+  --asx:#6f8a36; --tsx:#00557f; --cse:#a07d0c; --ps:#b9810a;
+  --accent:#6f8a36; --link:#00557f; --up:#4f7a1f; --down:#c0392b;
+  --brand:#414042; --mark:#7c9640;
+}
+html[data-theme="dark"]{
+  --bg:#1b1d17; --panel:#23261e; --panel2:#2a2d23; --line:#393c30;
+  --txt:#eef0e4; --mut:#abada0; --dim:#76786b;
+  --asx:#a7af39; --tsx:#6bb3dd; --cse:#d3bd2a; --ps:#fcaf17;
+  --accent:#a7af39; --link:#8fc6e8; --up:#9ccc4e; --down:#e5736b;
+  --brand:#eef0e4; --mark:#a7af39;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--txt);
+  font-family:Calibri,"Segoe UI",Carlito,system-ui,-apple-system,sans-serif;
+  font-size:15px; line-height:1.45; -webkit-font-smoothing:antialiased;
+  padding-bottom:50px;
+}
+header{
+  position:sticky; top:0; z-index:30; background:var(--bg);
+  background-image:linear-gradient(118deg, color-mix(in srgb,var(--mark) 12%,transparent), transparent 45%);
+  border-bottom:1px solid var(--line); padding:13px 16px 10px;
+}
+.title-row{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
+.wordmark{display:flex; align-items:center; gap:6px; font-weight:700; font-size:11px;
+  letter-spacing:2.5px; color:var(--brand); margin-bottom:3px}
+.wm-mark{width:9px; height:9px; background:var(--mark); display:inline-block}
+h1{font-size:18px; font-weight:700; letter-spacing:-.2px; color:var(--txt)}
+h1 .sub{color:var(--mut); font-weight:600}
+.head-actions{display:flex; gap:6px; align-items:center}
+.theme-btn,.refresh-btn{
+  background:var(--panel); color:var(--mut); border:1px solid var(--line);
+  border-radius:7px; padding:5px 10px; font-size:13px; cursor:pointer;
+  font-family:inherit;
+}
+.theme-btn:hover,.refresh-btn:hover{color:var(--txt); border-color:var(--mut)}
+.refresh-btn{display:flex; align-items:center; gap:6px; color:var(--accent);
+  border-color:color-mix(in srgb,var(--accent) 45%,transparent); font-weight:600}
+.refresh-btn .ico{font-size:14px; line-height:1}
+.stats{display:flex; gap:16px; margin-top:9px; font-size:12.5px; color:var(--mut);
+  flex-wrap:wrap; font-variant-numeric:tabular-nums}
+.stats b{color:var(--txt); font-weight:700}
+.stats .ps-stat b{color:var(--ps)}
+nav{
+  position:sticky; top:0; z-index:20; background:var(--bg);
+  border-bottom:1px solid var(--line); padding:9px 12px;
+  display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+}
+nav::-webkit-scrollbar{height:0}
+.chip{
+  flex:0 0 auto; display:flex; align-items:center; gap:6px;
+  background:var(--panel); border:1px solid var(--line); border-radius:8px;
+  padding:5px 10px; color:var(--txt); font-size:13px; cursor:pointer;
+  transition:border-color .12s; font-variant-numeric:tabular-nums;
+}
+.chip:hover{border-color:var(--mut)}
+.chip.active{border-color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 10%,transparent);
+  box-shadow:inset 0 0 0 1px var(--accent)}
+.chip.active .chip-tk{color:var(--accent)}
+.chip-tk{font-weight:700; letter-spacing:.3px}
+.chip-n{color:var(--dim); font-size:11px}
+.chip.ex-asx{border-left:3px solid var(--asx)}
+.chip.ex-tsx{border-left:3px solid var(--tsx)}
+.chip.ex-cse{border-left:3px solid var(--cse)}
+.controls{
+  display:flex; gap:8px; padding:10px 16px; position:sticky; top:0; z-index:10;
+  background:var(--bg); border-bottom:1px solid var(--line); flex-wrap:wrap;
+}
+#search{
+  flex:1; min-width:160px; background:var(--panel); border:1px solid var(--line);
+  border-radius:8px; padding:8px 11px; color:var(--txt); font-size:14px;
+  font-family:inherit;
+}
+#search:focus{outline:none; border-color:var(--accent)}
+.ps-toggle{
+  display:flex; align-items:center; gap:7px; background:var(--panel);
+  border:1px solid var(--line); border-radius:8px; padding:8px 11px;
+  font-size:13px; color:var(--mut); cursor:pointer; user-select:none;
+}
+.ps-toggle input{accent-color:var(--ps)}
+main{padding:8px 12px}
+.company{
+  background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  margin:10px 0; overflow:hidden; display:none;
+}
+.company.selected{display:block}
+.month-group{border-top:1px solid var(--line)}
+.month-group:first-child{border-top:none}
+.month-label{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:7px 15px; background:var(--panel2);
+  font-size:11.5px; font-weight:700; letter-spacing:.8px; color:var(--mut);
+  text-transform:uppercase; border-bottom:1px solid var(--line);
+  font-variant-numeric:tabular-nums;
+}
+.month-count{color:var(--dim); font-weight:600}
+.co-head{
+  padding:13px 15px 11px; border-bottom:1px solid var(--line); background:var(--panel2);
+  border-left:3px solid var(--accent);
+}
+.co-id{display:flex; align-items:center; gap:9px; flex-wrap:wrap}
+.tk{font-weight:700; font-size:18px; letter-spacing:.5px}
+.co-name{color:var(--mut); font-size:13.5px}
+.badge{
+  font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:5px;
+  letter-spacing:.5px;
+}
+.badge.ex-asx{color:var(--asx); background:color-mix(in srgb,var(--asx) 16%,transparent)}
+.badge.ex-tsx{color:var(--tsx); background:color-mix(in srgb,var(--tsx) 16%,transparent)}
+.badge.ex-cse{color:var(--cse); background:color-mix(in srgb,var(--cse) 18%,transparent)}
+.co-meta{display:flex; justify-content:space-between; align-items:center;
+  margin-top:6px; font-size:12px}
+.co-count{color:var(--dim)}
+.co-link{color:var(--link); text-decoration:none; font-weight:600}
+.co-link:hover{text-decoration:underline}
+.ann-list{list-style:none}
+.ann{
+  display:grid; grid-template-columns:58px 1fr auto; gap:4px 10px;
+  padding:11px 15px; border-bottom:1px solid var(--line);
+}
+.ann:last-child{border-bottom:none}
+.ann-date{grid-column:1; grid-row:1; font-size:12px; color:var(--mut);
+  padding-top:1px; white-space:nowrap; font-variant-numeric:tabular-nums}
+.ann-title{grid-column:2; grid-row:1; color:var(--txt); text-decoration:none;
+  font-size:14px; font-weight:600}
+.ann-title:hover{color:var(--link); text-decoration:underline}
+.ann-chg{grid-column:3; grid-row:1; justify-self:end; white-space:nowrap;
+  padding-top:1px; font-size:12px; font-weight:700; font-variant-numeric:tabular-nums}
+.ann-chg.up{color:var(--up)}
+.ann-chg.down{color:var(--down)}
+.ann-chg.flat{color:var(--mut)}
+.ann-chg.none{color:var(--dim); font-weight:400}
+.ann-tags{grid-column:2 / span 2; grid-row:2; display:flex; gap:6px;
+  flex-wrap:wrap; margin-top:2px}
+.tag{
+  font-size:10.5px; color:var(--mut); background:var(--panel2);
+  border:1px solid var(--line); border-radius:5px; padding:1px 7px;
+}
+.tag.ps{color:var(--ps); font-weight:700;
+  border-color:color-mix(in srgb,var(--ps) 45%,transparent);
+  background:color-mix(in srgb,var(--ps) 12%,transparent)}
+.empty{padding:16px 15px; color:var(--dim); font-size:13px; font-style:italic}
+.company.hidden,.ann.hidden,.month-group.hidden{display:none}
+footer{
+  padding:18px 16px; color:var(--dim); font-size:11.5px;
+  border-top:1px solid var(--line); margin-top:14px; line-height:1.7;
+}
+footer .src{color:var(--mut)}
+.demo-note{margin-top:4px; color:var(--ps)}
+.demo-note code{background:var(--panel2); padding:1px 5px; border-radius:4px}
+</style>
+</head>
+<body>
+<header>
+  <div class="title-row">
+    <div>
+      <div class="wordmark"><span class="wm-mark"></span>BEMISA</div>
+      <h1>Monitor de Comunicados <span class="sub">&middot; REE</span></h1>
+    </div>
+    <div class="head-actions">
+      <button class="refresh-btn" id="refreshBtn" onclick="refreshDashboard()" title="Recarrega a versao mais recente publicada"><span class="ico">&#8635;</span><span>atualizar</span></button>
+      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">escuro</button>
+    </div>
+  </div>
+  <div class="stats">
+    <span><b>{{ n_companies }}</b> empresas</span>
+    <span><b>{{ n_announcements }}</b> comunicados</span>
+    <span class="ps-stat"><b>{{ n_ps }}</b> sensíveis ao preço</span>
+    <span>atualizado {{ updated }}</span>
+  </div>
+</header>
+
+<nav>{% for c in companies %}<button class="chip ex-{{ c.exchange_lower }}{% if c.selected %} active{% endif %}" data-target="sec-{{ c.exchange }}-{{ c.ticker }}" onclick="selectCompany('sec-{{ c.exchange }}-{{ c.ticker }}')"><span class="chip-tk">{{ c.ticker }}</span><span class="chip-n">{{ c.count }}</span></button>{% endfor %}</nav>
+<div class="controls">
+  <input id="search" type="search" placeholder="filtrar por palavra-chave..." oninput="applyFilters()">
+  <label class="ps-toggle"><input type="checkbox" id="psOnly" onchange="applyFilters()"> só sensíveis ao preço</label>
+</div>
+<main>{% for c in companies %}<section class="company{% if c.selected %} selected{% endif %}" id="sec-{{ c.exchange }}-{{ c.ticker }}" data-ticker="{{ c.ticker }}" data-exchange="{{ c.exchange }}"><div class="co-head"><div class="co-id"><span class="tk">{{ c.ticker }}</span><span class="badge ex-{{ c.exchange_lower }}">{{ c.exchange }}</span><span class="co-name">{{ c.name }}</span></div><div class="co-meta"><span class="co-count">{{ c.count }} comunicado{{ 's' if c.count != 1 else '' }}</span><a class="co-link" href="{{ c.company_url }}" target="_blank" rel="noopener">abrir na bolsa &rarr;</a></div></div>{% if c.months %}<div class="months">{% for m in c.months %}<div class="month-group" data-month="{{ m.key }}"><div class="month-label"><span>{{ m.label }}</span><span class="month-count">{{ m.count }}</span></div><ul class="ann-list">{% for a in m.entries %}<li class="ann" data-ps="{{ a.data_ps }}" data-text="{{ a.data_text }}"><span class="ann-date">{{ a.date_label }}</span><a class="ann-title" href="{{ a.url }}" target="_blank" rel="noopener">{{ a.title }}</a><span class="ann-chg {{ a.chg_class }}">{{ a.chg_html | safe }}</span><span class="ann-tags">{% if a.ps %}<span class="tag ps">sensível ao preço</span>{% endif %}{% for t in a.tags %}<span class="tag">{{ t }}</span>{% endfor %}</span></li>{% endfor %}</ul></div>{% endfor %}</div>{% else %}<div class="empty">Sem comunicados disponíveis no momento.</div>{% endif %}</section>{% endfor %}</main>
+<footer><div class="src">Fontes: ASX (API JSON / RSS), TSX/CSE (SEDAR+ &middot; melhor esforço). Reação = variação % do fechamento no dia do comunicado vs. pregão anterior (Yahoo Finance).</div><div class="demo-note">Atualizado automaticamente. Gere localmente com <code>python ree_monitor.py --dashboard</code>.</div></footer>
+<script>
+function toggleTheme(){
+  var h=document.documentElement;
+  var cur=h.getAttribute('data-theme');
+  var next=cur==='dark'?'light':'dark';
+  h.setAttribute('data-theme',next);
+  document.getElementById('themeBtn').textContent=next==='dark'?'claro':'escuro';
+}
+function refreshDashboard(){
+  // A coleta roda no servidor (GitHub Action). O botao recarrega a ultima
+  // versao publicada, contornando cache do navegador.
+  var btn=document.getElementById('refreshBtn');
+  btn.querySelector('span:last-child').textContent='atualizando...';
+  location.reload();
+}
+function selectCompany(id){
+  document.querySelectorAll('.company').forEach(function(s){
+    s.classList.toggle('selected', s.id===id);
+  });
+  document.querySelectorAll('.chip').forEach(function(c){
+    c.classList.toggle('active', c.getAttribute('data-target')===id);
+  });
+  applyFilters();
+}
+function applyFilters(){
+  var q=document.getElementById('search').value.trim().toLowerCase();
+  var psOnly=document.getElementById('psOnly').checked;
+  var sec=document.querySelector('.company.selected');
+  if(!sec) return;
+  sec.querySelectorAll('.ann').forEach(function(li){
+    var okText=!q||li.getAttribute('data-text').indexOf(q)>-1;
+    var okPs=!psOnly||li.getAttribute('data-ps')==='1';
+    li.classList.toggle('hidden',!(okText&&okPs));
+  });
+  sec.querySelectorAll('.month-group').forEach(function(g){
+    var vis=g.querySelectorAll('.ann:not(.hidden)').length;
+    g.classList.toggle('hidden',vis===0);
+  });
+}
+document.addEventListener('DOMContentLoaded',applyFilters);
+</script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+# Monitor de Comunicados REE
+
+Dashboard que reúne, num só lugar, os comunicados das empresas de terras-raras
+acompanhadas e mostra a **reação do mercado** (variação % do preço no dia de cada
+comunicado). O dashboard é **gerado automaticamente** e cada linha de notícia
+**leva direto ao comunicado** na bolsa.
+
+- **Página publicada:** GitHub Pages (ver _Configuração_ abaixo).
+- **Atualização:** automática 1×/dia útil + execução manual sob demanda.
+- **Botão "atualizar"** na página recarrega a versão mais recente publicada.
+
+## Como funciona
+
+```
+ree_monitor.py        -> coleta comunicados + calcula a % + gera docs/index.html
+sources/              -> uma fonte por bolsa (interface comum, plugável)
+  asx.py              -> ASX: API JSON oficial -> RSS (fallback)
+  canada.py           -> TSX/CSE: SEDAR+ (melhor esforço)
+prices.py             -> Yahoo Finance (yfinance): variação % close-to-close
+companies.json        -> empresas monitoradas (edite aqui)
+templates/            -> template do dashboard (mesmo visual do original)
+docs/index.html       -> SAÍDA gerada (publicada pelo GitHub Pages)
+.github/workflows/    -> automação (agendada + manual)
+```
+
+A reação de mercado é a **variação % do fechamento no pregão do comunicado vs. o
+pregão anterior** (close-to-close). Quando não há preço disponível, a linha mostra "—".
+
+## Rodar localmente
+
+```bash
+pip install -r requirements.txt
+
+# Dados reais (precisa de internet com acesso às fontes):
+python ree_monitor.py --dashboard
+
+# Dados de exemplo (offline, só para ver o visual):
+python ree_monitor.py --sample
+
+# Apenas algumas empresas:
+python ree_monitor.py --dashboard --only ALV,BRE
+```
+
+Abra `docs/index.html` no navegador.
+
+## Atualização automática (GitHub Actions)
+
+O workflow `.github/workflows/update-dashboard.yml`:
+
+1. Roda todo dia útil às 22:00 UTC (após o fechamento de ASX e TSX) **e** quando
+   você clica em **Actions → "Atualizar dashboard" → Run workflow**.
+2. Executa `python ree_monitor.py --dashboard`, commita o `docs/index.html`
+   atualizado e publica no GitHub Pages.
+
+### Configuração (uma vez)
+
+1. **Settings → Pages →** _Build and deployment_ → **Source: GitHub Actions**.
+2. Garanta que Actions tem permissão de escrita: **Settings → Actions → General →
+   Workflow permissions → Read and write permissions**.
+3. Pronto. O link público aparece em Settings → Pages e na aba do workflow.
+
+## Editar a lista de empresas
+
+Edite `companies.json` (ticker, bolsa, nome, símbolo no Yahoo Finance e link da
+bolsa). Exemplo:
+
+```json
+{"ticker": "ALV", "exchange": "ASX", "name": "Alvo Minerals",
+ "yf_symbol": "ALV.AX", "company_url": "https://www.asx.com.au/markets/company/ALV"}
+```
+
+## Limitações e notas
+
+- **ASX** tem proteção anti-robô. Usamos a API oficial e, como reserva, RSS por
+  empresa. A partir do IP do GitHub Actions costuma funcionar; se uma fonte falhar,
+  a coleta das demais empresas continua normalmente.
+- **TSX/CSE** (ARA, EFR, API) são **melhor esforço** via SEDAR+ — sem API pública
+  gratuita confiável. Se indisponível, a empresa aparece sem comunicados (sem quebrar
+  a página). Para cobertura garantida dessas bolsas, integrar um provedor pago
+  (ex.: QuoteMedia/EODHD) em `sources/canada.py`.
+- O **botão "atualizar"** recarrega a página. Para forçar uma nova coleta sob demanda,
+  use **Run workflow** em Actions (a coleta roda no servidor, não no navegador).
