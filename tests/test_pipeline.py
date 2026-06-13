@@ -77,10 +77,10 @@ class TestASXParsing(unittest.TestCase):
           <tr><td>05/06/2026 10:30 AM</td>
               <td><img src="/img/price_sensitive.gif" alt="price sensitive"></td>
               <td><a href="/asx/v2/statistics/displayAnnouncement.do?display=pdf&idsId=02800001">
-                  Quarterly Activities Report</a> 14 pages</td></tr>
+                  Quarterly Activities Report 14\n\t\t pages 13.8MB</a></td></tr>
           <tr><td>20/01/2026 09:00 AM</td><td></td>
               <td><a href="/asx/v2/statistics/displayAnnouncement.do?display=pdf&idsId=02800002">
-                  Appendix 3B</a> 2 pages</td></tr>
+                  Appendix 3B 2 pages 226.8KB</a></td></tr>
         </table>
         <a name="reused"></a>
         <tr><td>01/01/2020</td><td><a href="/asx/v2/statistics/displayAnnouncement.do?display=pdf&idsId=09999999">
@@ -88,6 +88,9 @@ class TestASXParsing(unittest.TestCase):
         """
         anns = parse_announcements_html(html, ALV)
         self.assertEqual(len(anns), 2)  # a secao 'reused' e ignorada
+        # titulo limpo: sem o "<n> pages <tamanho>" que vem no link da ASX
+        self.assertEqual(anns[0].title, "Quarterly Activities Report")
+        self.assertEqual(anns[1].title, "Appendix 3B")
         self.assertEqual(anns[0].date, dt.date(2026, 6, 5))
         self.assertTrue(anns[0].url.startswith(
             "https://www.asx.com.au/asx/v2/statistics/displayAnnouncement.do?display=pdf&idsId=02800001"))

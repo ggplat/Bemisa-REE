@@ -32,6 +32,13 @@ MARKIT_TOKEN = "83ff96335c2d45a094df02a206a39ff4"
 DEFAULT_COUNT = 100  # busca ampla; a filtragem por data (desde jan/2026) e feita depois
 _DATE_RE = re.compile(r"(\d{2}/\d{2}/\d{4})")
 _PAGES_RE = re.compile(r"(\d+)\s*page", re.I)
+# o link da ASX inclui no fim do titulo "<n> pages <tamanho>"; removemos isso
+_TITLE_SUFFIX_RE = re.compile(r"\s+\d+\s+pages?\b.*$", re.I)
+
+
+def _clean_title(raw: str) -> str:
+    norm = re.sub(r"\s+", " ", raw).strip()
+    return _TITLE_SUFFIX_RE.sub("", norm).strip()
 
 
 def _markit_doc_url(item: dict) -> str:
@@ -141,7 +148,7 @@ def parse_announcements_html(html: str, company: Company) -> list[Announcement]:
         href = a.get("href", "")
         if "display=pdf" not in href:
             continue  # cada anuncio tem link HTML e PDF; usamos so o PDF
-        title = a.get_text(" ", strip=True)
+        title = _clean_title(a.get_text(" ", strip=True))
         row = a.find_parent("tr") or a.parent
         row_text = row.get_text(" ", strip=True) if row else title
         dm = _DATE_RE.search(row_text)
