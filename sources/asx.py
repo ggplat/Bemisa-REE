@@ -1,21 +1,23 @@
 """Fonte de comunicados da ASX (Australia).
 
-A ASX protege seus endpoints contra robos (anti-bot/CAPTCHA desde 2024), por isso
-tentamos varias estrategias em ordem e usamos a primeira que retornar resultados:
+Tentamos varias estrategias em ordem e usamos a primeira que retornar resultados:
 
-  1. API markitdigital (a mesma que o site asx.com.au usa hoje)
-  2. API JSON legada da ASX (asx.com.au/asx/1/company/{code}/announcements)
-  3. Feed RSS por empresa (noisymime.org) como fallback
+  1. Pagina de historico da ASX (statistics/announcements.do) - cobre ~6 meses
+     com data, titulo, link do PDF e flag de sensibilidade ao preco.
+  2. API markitdigital (a mesma que o site asx.com.au usa) - so os 5 mais recentes.
 
-Cada estrategia e isolada: se uma falhar (HTTP 403, formato mudou, etc.), passamos
-para a proxima sem quebrar a coleta das demais empresas.
+A markit limita a resposta a 5 comunicados, por isso a pagina de historico e a
+fonte primaria (necessaria para mostrar comunicados desde janeiro). Cada estrategia
+e isolada: se uma falhar, passamos para a proxima sem quebrar a coleta das demais.
 """
 from __future__ import annotations
 
 import datetime as dt
 import logging
+import re
 from typing import Optional
-from xml.etree import ElementTree as ET
+
+from bs4 import BeautifulSoup
 
 from .base import Announcement, Company, Source
 from .classify import classify
@@ -28,6 +30,8 @@ MARKIT_BASE = "https://asx.api.markitdigital.com"
 # Token publico embutido no proprio site da ASX para baixar os PDFs dos comunicados.
 MARKIT_TOKEN = "83ff96335c2d45a094df02a206a39ff4"
 DEFAULT_COUNT = 100  # busca ampla; a filtragem por data (desde jan/2026) e feita depois
+_DATE_RE = re.compile(r"(\d{2}/\d{2}/\d{4})")
+_PAGES_RE = re.compile(r"(\d+)\s*page", re.I)
 
 
 def _markit_doc_url(item: dict) -> str:
@@ -71,7 +75,7 @@ class ASXSource(Source):
     exchange = "ASX"
 
     def fetch(self, company: Company) -> list[Announcement]:
-        for strategy in (self._fetch_markit, self._fetch_rss):
+        for strategy in (self._fetch_history, self._fetch_markit):
             try:
                 anns = strategy(company)
             except Exception as exc:  # noqa: BLE001 - estrategia isolada
@@ -83,7 +87,7 @@ class ASXSource(Source):
         log.warning("ASX %s: nenhuma estrategia retornou comunicados", company.ticker)
         return []
 
-    # --- estrategia 1: API markitdigital (a que o site asx.com.au usa hoje) ---
+    # --- estrategia 2 (fallback): API markitdigital (so os 5 mais recentes) ---
     def _fetch_markit(self, company: Company) -> list[Announcement]:
         url = (
             f"{MARKIT_BASE}/asx-research/1.0/companies/{company.ticker}/announcements"
@@ -116,42 +120,52 @@ class ASXSource(Source):
             ))
         return out
 
-    # --- estrategia 2: RSS (fallback) -----------------------------------
-    def _fetch_rss(self, company: Company) -> list[Announcement]:
-        url = f"http://noisymime.org/asx/rss.php?code={company.ticker}"
-        resp = http_util.get(url)
+    # --- estrategia 1 (primaria): pagina de historico (~6 meses) --------
+    def _fetch_history(self, company: Company) -> list[Announcement]:
+        url = (f"{ASX_BASE}/asx/v2/statistics/announcements.do"
+               f"?by=asxCode&asxCode={company.ticker}&timeframe=D&period=M6")
+        resp = http_util.get(url, headers={"Referer": f"{ASX_BASE}/"})
         if resp is None:
             return []
-        root = ET.fromstring(resp.content)
-        out: list[Announcement] = []
-        for item in root.iter("item"):
-            title = (item.findtext("title") or "").strip()
-            link = (item.findtext("link") or "").strip()
-            pub = item.findtext("pubDate") or ""
-            date = _parse_rss_date(pub)
-            if date is None or not title:
-                continue
-            # RSS costuma marcar sensiveis ao preco com '*' ou '[PS]' no titulo
-            ps = "*" in title or "price sensitive" in title.lower()
-            title = title.replace("*", "").strip()
-            out.append(Announcement(
-                ticker=company.ticker,
-                exchange="ASX",
-                company_name=company.name,
-                date=date,
-                title=title,
-                url=link or company.company_url,
-                price_sensitive=ps,
-                doc_type=classify(title),
-            ))
-        return out
+        return parse_announcements_html(resp.text, company)
 
 
-def _parse_rss_date(value: str) -> Optional[dt.date]:
-    value = value.strip()
-    for fmt in ("%a, %d %b %Y %H:%M:%S %z", "%a, %d %b %Y %H:%M:%S %Z", "%a, %d %b %Y"):
+def parse_announcements_html(html: str, company: Company) -> list[Announcement]:
+    """Extrai comunicados da pagina announcements.do (data, titulo, PDF, sensibilidade)."""
+    # ignora a secao final "Other companies that re-used..." (anuncios de terceiros)
+    html = re.split(r'name=["\']reused', html, maxsplit=1)[0]
+    soup = BeautifulSoup(html, "html.parser")
+    out: list[Announcement] = []
+    seen: set[str] = set()
+    for a in soup.select('a[href*="displayAnnouncement.do"]'):
+        href = a.get("href", "")
+        if "display=pdf" not in href:
+            continue  # cada anuncio tem link HTML e PDF; usamos so o PDF
+        title = a.get_text(" ", strip=True)
+        row = a.find_parent("tr") or a.parent
+        row_text = row.get_text(" ", strip=True) if row else title
+        dm = _DATE_RE.search(row_text)
+        if not title or dm is None:
+            continue
         try:
-            return dt.datetime.strptime(value, fmt).date()
+            date = dt.datetime.strptime(dm.group(1), "%d/%m/%Y").date()
         except ValueError:
             continue
-    return None
+        key = href.split("idsId=")[-1]
+        if key in seen:
+            continue
+        seen.add(key)
+        ps = bool(row and (row.select_one('img[src*="sensitive"], img[alt*="ensitive"]')))
+        pm = _PAGES_RE.search(row_text)
+        out.append(Announcement(
+            ticker=company.ticker,
+            exchange="ASX",
+            company_name=company.name,
+            date=date,
+            title=title,
+            url=ASX_BASE + href if href.startswith("/") else href,
+            price_sensitive=ps,
+            doc_type=classify(title),
+            pages=int(pm.group(1)) if pm else None,
+        ))
+    return out

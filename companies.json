@@ -30,13 +30,13 @@
     {"ticker": "VMM", "exchange": "ASX", "name": "Viridis Mining", "yf_symbol": "VMM.AX", "company_url": "https://www.asx.com.au/markets/company/VMM",
      "projects": [{"name": "Colossus", "tier": "principal"}]},
     {"ticker": "ARA", "exchange": "TSX", "name": "Aclara Resources", "yf_symbol": "ARA.TO", "company_url": "https://money.tmx.com/en/quote/ARA",
-     "news": {"type": "tmx", "symbol": "ARA"},
+     "news": {"type": "yahoo", "symbol": "ARA.TO"},
      "projects": [{"name": "Carina", "tier": "principal"}]},
     {"ticker": "EFR", "exchange": "TSX", "name": "Energy Fuels", "yf_symbol": "EFR.TO", "company_url": "https://money.tmx.com/en/quote/EFR",
      "news": {"type": "yahoo", "symbol": "UUUU"},
      "projects": [{"name": "Bahia", "tier": "secundario"}]},
     {"ticker": "API", "exchange": "CSE", "name": "Appia Rare Earths & Uranium", "yf_symbol": "API.CN", "company_url": "https://thecse.com/en/listings?search=API",
-     "news": {"type": "appia", "url": "https://appiareu.com/news/"},
+     "news": {"type": "appia", "url": "https://appiareu.com/feed/"},
      "projects": [{"name": "PCH", "tier": "principal"}]}
   ]
 }

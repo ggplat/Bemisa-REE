@@ -90,6 +90,8 @@ nav::-webkit-scrollbar{height:0}
   font-size:13px; color:var(--mut); cursor:pointer; user-select:none;
 }
 .ps-toggle input{accent-color:var(--ps)}
+.proj-legend{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--mut)}
+.proj-legend .proj{padding:1px 6px; font-size:10px}
 main{padding:8px 12px}
 .company{
   background:var(--panel); border:1px solid var(--line); border-radius:12px;
@@ -198,6 +200,7 @@ footer .src{color:var(--mut)}
 <div class="controls">
   <input id="search" type="search" placeholder="filtrar por palavra-chave..." oninput="applyFilters()">
   <label class="ps-toggle"><input type="checkbox" id="psOnly" onchange="applyFilters()"> só sensíveis ao preço</label>
+  <span class="proj-legend"><span class="proj main">&#9733;</span> projeto principal &nbsp;·&nbsp; <span class="proj">projeto</span> secundário</span>
 </div>
 <main>{% for c in companies %}<section class="company{% if c.selected %} selected{% endif %}" id="sec-{{ c.exchange }}-{{ c.ticker }}" data-ticker="{{ c.ticker }}" data-exchange="{{ c.exchange }}"><div class="co-head"><div class="co-id"><span class="tk">{{ c.ticker }}</span><span class="badge ex-{{ c.exchange_lower }}">{{ c.exchange }}</span><span class="co-name">{{ c.name }}</span></div>{% if c.projects %}<div class="co-projects"><span class="proj-label">projeto{{ 's' if c.projects|length != 1 else '' }}:</span>{% for p in c.projects %}<span class="proj{% if p.is_main %} main{% endif %}" title="{{ 'Projeto principal' if p.is_main else 'Projeto secundário' }}">{% if p.is_main %}&#9733; {% endif %}{{ p.name }}</span>{% endfor %}</div>{% endif %}<div class="co-meta"><span class="co-count">{{ c.count }} comunicado{{ 's' if c.count != 1 else '' }}</span><a class="co-link" href="{{ c.company_url }}" target="_blank" rel="noopener">abrir na bolsa &rarr;</a></div></div>{% if c.months %}<div class="months">{% for m in c.months %}<div class="month-group" data-month="{{ m.key }}"><div class="month-label" onclick="toggleMonth(this)"><span class="month-head"><span class="month-caret">&#9662;</span>{{ m.label }}</span><span class="month-count">{{ m.count }}</span></div><ul class="ann-list">{% for a in m.entries %}<li class="ann" data-ps="{{ a.data_ps }}" data-text="{{ a.data_text }}"><span class="ann-date">{{ a.date_label }}</span><a class="ann-title" href="{{ a.url }}" target="_blank" rel="noopener">{{ a.title }}</a><span class="ann-chg {{ a.chg_class }}">{{ a.chg_html | safe }}</span><span class="ann-tags">{% if a.ps %}<span class="tag ps">sensível ao preço</span>{% endif %}{% for t in a.tags %}<span class="tag">{{ t }}</span>{% endfor %}</span></li>{% endfor %}</ul></div>{% endfor %}</div>{% else %}<div class="empty">Sem comunicados disponíveis no momento.</div>{% endif %}</section>{% endfor %}</main>
 <footer><div class="src">Fontes: ASX (markitdigital), TSX/CSE (notícias Yahoo Finance). Reação = variação % do fechamento no dia da publicação vs. pregão anterior (Yahoo Finance).</div><div class="demo-note">Atualizado automaticamente. Gere localmente com <code>python ree_monitor.py --dashboard</code>.</div></footer>

@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import render
 from sources import get_source
-from sources.asx import ASXSource, _parse_iso_date
+from sources.asx import ASXSource, _parse_iso_date, parse_announcements_html
 from sources.base import Company
 from sources.classify import classify
 
@@ -26,6 +26,11 @@ class FakeResp:
         self._payload = payload
     def json(self):
         return self._payload
+
+
+class FakeRespBytes:
+    def __init__(self, content):
+        self.content = content
 
 
 ALV = Company(ticker="ALV", exchange="ASX", name="Alvo Minerals",
@@ -64,6 +69,34 @@ class TestASXParsing(unittest.TestCase):
         self.assertEqual(anns[1].url, "https://cdn.example.com/ready.pdf")
         self.assertEqual(anns[1].doc_type, "Administrative")
         self.assertFalse(anns[1].price_sensitive)
+
+    def test_history_html_parser(self):
+        # estrutura da pagina announcements.do (historico ~6 meses)
+        html = """
+        <table>
+          <tr><td>05/06/2026 10:30 AM</td>
+              <td><img src="/img/price_sensitive.gif" alt="price sensitive"></td>
+              <td><a href="/asx/v2/statistics/displayAnnouncement.do?display=pdf&idsId=02800001">
+                  Quarterly Activities Report</a> 14 pages</td></tr>
+          <tr><td>20/01/2026 09:00 AM</td><td></td>
+              <td><a href="/asx/v2/statistics/displayAnnouncement.do?display=pdf&idsId=02800002">
+                  Appendix 3B</a> 2 pages</td></tr>
+        </table>
+        <a name="reused"></a>
+        <tr><td>01/01/2020</td><td><a href="/asx/v2/statistics/displayAnnouncement.do?display=pdf&idsId=09999999">
+            Outra empresa</a></td></tr>
+        """
+        anns = parse_announcements_html(html, ALV)
+        self.assertEqual(len(anns), 2)  # a secao 'reused' e ignorada
+        self.assertEqual(anns[0].date, dt.date(2026, 6, 5))
+        self.assertTrue(anns[0].url.startswith(
+            "https://www.asx.com.au/asx/v2/statistics/displayAnnouncement.do?display=pdf&idsId=02800001"))
+        self.assertTrue(anns[0].price_sensitive)   # detectado pelo img alt
+        self.assertEqual(anns[0].pages, 14)
+        self.assertEqual(anns[0].doc_type, "Trimestral")
+        self.assertEqual(anns[1].date, dt.date(2026, 1, 20))
+        self.assertFalse(anns[1].price_sensitive)
+        self.assertEqual(anns[1].doc_type, "Appendix 3B")
 
     def test_fetch_falls_back_and_never_raises(self):
         # ambas as estrategias retornam vazio -> fetch retorna [] sem erro
@@ -111,33 +144,50 @@ class TestRender(unittest.TestCase):
 
 
 class TestCanada(unittest.TestCase):
-    def test_yahoo_news_parsing_and_age_filter(self):
+    def test_yahoo_news_uses_override_symbol(self):
         from sources.canada import CanadaSource
+        # EFR exibido como TSX, mas noticias puxadas pelo ticker UUUU (config 'news')
         comp = Company(ticker="EFR", exchange="TSX", name="Energy Fuels",
-                       yf_symbol="EFR.TO", company_url="https://money.tmx.com/en/quote/EFR")
-        today = dt.date.today().isoformat()
-        news = [
-            {"id": "1", "content": {
-                "contentType": "STORY", "title": "Energy Fuels production update",
-                "pubDate": today + "T11:03:57Z",
-                "canonicalUrl": {"url": "https://finance.yahoo.com/x.html"},
-                "provider": {"displayName": "Zacks"}}},
-            {"id": "2", "content": {  # muito antigo -> filtrado
-                "contentType": "VIDEO", "title": "Old item",
-                "pubDate": "2000-01-01T00:00:00Z",
-                "canonicalUrl": {"url": "https://finance.yahoo.com/old.html"}}},
-        ]
+                       yf_symbol="EFR.TO", company_url="https://money.tmx.com/en/quote/EFR",
+                       news={"type": "yahoo", "symbol": "UUUU"})
+        news = [{"id": "1", "content": {
+            "contentType": "STORY", "title": "Energy Fuels production update",
+            "pubDate": "2026-06-11T11:03:57Z",
+            "canonicalUrl": {"url": "https://finance.yahoo.com/x.html"},
+            "provider": {"displayName": "Zacks"}}}]
         fake = mock.Mock()
         fake.news = news
-        with mock.patch("yfinance.Ticker", return_value=fake):
+        captured = {}
+
+        def fake_ticker(sym):
+            captured["sym"] = sym
+            return fake
+        with mock.patch("yfinance.Ticker", side_effect=fake_ticker):
             anns = CanadaSource().fetch(comp)
+        self.assertEqual(captured["sym"], "UUUU")  # usou o ticker de noticias, nao EFR.TO
         self.assertEqual(len(anns), 1)
         a = anns[0]
         self.assertEqual(a.url, "https://finance.yahoo.com/x.html")
-        self.assertEqual(a.exchange, "TSX")
-        self.assertEqual(a.doc_type, "Notícia")
+        self.assertEqual(a.exchange, "TSX")   # exibicao mantida como TSX
         self.assertEqual(a.source, "Zacks")
         self.assertIn("Zacks", a.tags)
+
+    def test_appia_rss_parsing(self):
+        from sources.canada import CanadaSource
+        comp = Company(ticker="API", exchange="CSE", name="Appia Rare Earths & Uranium",
+                       yf_symbol="API.CN", company_url="https://thecse.com/en/listings?search=API",
+                       news={"type": "appia", "url": "https://appiareu.com/feed/"})
+        rss = (b'<?xml version="1.0"?><rss><channel>'
+               b'<item><title>Appia Mobilizes for Summer Drill Program</title>'
+               b'<link>https://appiareu.com/appia-mobilizes/</link>'
+               b'<pubDate>Thu, 04 Jun 2026 11:30:00 +0000</pubDate></item>'
+               b'</channel></rss>')
+        with mock.patch("sources.canada.http_util.get", return_value=FakeRespBytes(rss)):
+            anns = CanadaSource().fetch(comp)
+        self.assertEqual(len(anns), 1)
+        self.assertEqual(anns[0].url, "https://appiareu.com/appia-mobilizes/")
+        self.assertEqual(anns[0].date, dt.date(2026, 6, 4))
+        self.assertEqual(anns[0].exchange, "CSE")
 
 
 class TestSourceRouting(unittest.TestCase):
