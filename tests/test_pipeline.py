@@ -127,6 +127,24 @@ class TestRender(unittest.TestCase):
     def test_date_label_pt(self):
         self.assertEqual(render._date_label(dt.date(2026, 6, 1)), "01/jun/26")
 
+    def test_pct_is_link_with_tooltip_when_data(self):
+        from sources.base import Announcement
+        anns = {"ALV": [
+            Announcement(ticker="ALV", exchange="ASX", company_name="Alvo Minerals",
+                         date=dt.date(2026, 6, 1), title="Com preço", url="https://x/a.pdf",
+                         pct_change=5.7, prev_close=1.23, close=1.30,
+                         reaction_date=dt.date(2026, 6, 1)),
+            Announcement(ticker="ALV", exchange="ASX", company_name="Alvo Minerals",
+                         date=dt.date(2026, 6, 2), title="Sem preço", url="https://x/b.pdf",
+                         pct_change=None),
+        ]}
+        html = render.render_html(render.build_context([ALV], anns))
+        # linha com dado: % vira link para o grafico do Yahoo (yf_symbol) + tooltip
+        self.assertIn('<a class="ann-chg up" href="https://finance.yahoo.com/quote/ALV.AX"', html)
+        self.assertIn("fech. anterior 1,230 → 1,300", html)
+        # linha sem dado: continua como span (sem href)
+        self.assertIn('<span class="ann-chg none">', html)
+
     def test_full_render_has_real_links_no_placeholder(self):
         from sources.base import Announcement
         anns = {"ALV": [Announcement(

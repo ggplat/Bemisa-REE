@@ -31,6 +31,10 @@ def sample_announcements(company: Company) -> list[Announcement]:
         title, doc_type, ps, pages = _TITLES[(i + rng.randint(0, 3)) % len(_TITLES)]
         date = today - dt.timedelta(days=rng.randint(0, 150))
         pct = rng.choice([None] + [round(rng.uniform(-9, 9), 1) for _ in range(6)])
+        prev_close = close = None
+        if pct is not None:
+            prev_close = round(rng.uniform(0.1, 5.0), 3)
+            close = round(prev_close * (1 + pct / 100.0), 3)
         out.append(Announcement(
             ticker=company.ticker,
             exchange=company.exchange,
@@ -42,5 +46,8 @@ def sample_announcements(company: Company) -> list[Announcement]:
             doc_type=doc_type,
             pages=pages,
             pct_change=pct,
+            prev_close=prev_close,
+            close=close,
+            reaction_date=date,
         ))
     return out

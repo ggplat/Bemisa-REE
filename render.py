@@ -39,6 +39,24 @@ def _chg(value: Optional[float]) -> tuple[str, str]:
     return "flat", f"0,0%"
 
 
+def _fmt_price(value: float) -> str:
+    return f"{value:.3f}".replace(".", ",")
+
+
+def _chart_url(symbol: str) -> str:
+    # pagina de cotacao do Yahoo (mesmo simbolo do calculo) com grafico interativo
+    return f"https://finance.yahoo.com/quote/{symbol}"
+
+
+def _chg_tooltip(a: Announcement, symbol: str) -> str:
+    """Texto do tooltip que confirma o valor da variacao."""
+    arrow = "▲" if a.pct_change > 0.05 else ("▼" if a.pct_change < -0.05 else "=")
+    when = _date_label(a.reaction_date) if a.reaction_date else _date_label(a.date)
+    return (f"Reação em {when} · fech. anterior {_fmt_price(a.prev_close)} "
+            f"→ {_fmt_price(a.close)} · {arrow} {_fmt_pct(a.pct_change)}% "
+            f"(Yahoo Finance: {symbol})")
+
+
 def _build_company(company: Company, anns: list[Announcement], *, selected: bool) -> dict:
     anns = sorted(anns, key=lambda a: a.date, reverse=True)
     groups: "defaultdict[tuple[int, int], list[Announcement]]" = defaultdict(list)
@@ -50,6 +68,7 @@ def _build_company(company: Company, anns: list[Announcement], *, selected: bool
         items = []
         for a in groups[(year, month)]:
             chg_class, chg_html = _chg(a.pct_change)
+            has_data = a.pct_change is not None and a.prev_close is not None
             items.append({
                 "date_label": _date_label(a.date),
                 "title": a.title,
@@ -59,6 +78,8 @@ def _build_company(company: Company, anns: list[Announcement], *, selected: bool
                 "data_text": a.title.lower(),  # autoescape do Jinja cuida do atributo
                 "chg_class": chg_class,
                 "chg_html": chg_html,
+                "chg_url": _chart_url(company.yf_symbol) if has_data else None,
+                "chg_title": _chg_tooltip(a, company.yf_symbol) if has_data else "",
                 "tags": a.tags,
             })
         months.append({

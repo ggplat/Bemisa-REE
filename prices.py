@@ -8,12 +8,23 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from dataclasses import dataclass
 from typing import Optional
 
 import pandas as pd
 import yfinance as yf
 
 log = logging.getLogger("ree")
+
+
+@dataclass
+class Reaction:
+    """Reacao do mercado a um comunicado (close-to-close)."""
+    pct: float
+    prev_close: float
+    close: float
+    prev_date: dt.date
+    reaction_date: dt.date
 
 
 class PriceProvider:
@@ -41,9 +52,9 @@ class PriceProvider:
         self._cache[symbol] = series
         return series
 
-    def pct_change(self, symbol: str, date: dt.date, *,
-                   window_start: dt.date, window_end: dt.date) -> Optional[float]:
-        """Variacao % do fechamento no pregao do comunicado vs. pregao anterior.
+    def reaction(self, symbol: str, date: dt.date, *,
+                 window_start: dt.date, window_end: dt.date) -> Optional[Reaction]:
+        """Reacao close-to-close no pregao do comunicado vs. pregao anterior.
 
         Se 'date' nao for pregao, usa o proximo pregao como dia da reacao.
         Retorna None quando nao ha dados suficientes.
@@ -64,4 +75,8 @@ class PriceProvider:
         close = float(series.iloc[idx])
         if prev_close == 0:
             return None
-        return (close - prev_close) / prev_close * 100.0
+        return Reaction(
+            pct=(close - prev_close) / prev_close * 100.0,
+            prev_close=prev_close, close=close,
+            prev_date=dates[idx - 1], reaction_date=reaction,
+        )

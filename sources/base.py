@@ -31,6 +31,9 @@ class Announcement:
     pages: Optional[int] = None
     source: str = ""                  # origem/veiculo (ex.: 'Zacks', 'ASX') - vira tag
     pct_change: Optional[float] = None  # variacao % close-to-close no dia (None = sem dado)
+    prev_close: Optional[float] = None  # fechamento do pregao anterior (para o tooltip)
+    close: Optional[float] = None       # fechamento no pregao da reacao
+    reaction_date: Optional["dt.date"] = None  # pregao usado como dia da reacao
 
     @property
     def tags(self) -> list[str]:

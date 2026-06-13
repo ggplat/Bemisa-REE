@@ -61,11 +61,16 @@ def collect_live(companies: list[Company]) -> dict[str, list[Announcement]]:
             wstart, wend = min(dates), max(dates)
             for a in anns:
                 try:
-                    a.pct_change = prices.pct_change(
+                    r = prices.reaction(
                         company.yf_symbol, a.date, window_start=wstart, window_end=wend)
                 except Exception as exc:  # noqa: BLE001
                     log.warning("Preco %s %s: %s", company.ticker, a.date, exc)
-                    a.pct_change = None
+                    r = None
+                if r is not None:
+                    a.pct_change = r.pct
+                    a.prev_close = r.prev_close
+                    a.close = r.close
+                    a.reaction_date = r.reaction_date
         result[company.ticker] = anns
 
     return result
