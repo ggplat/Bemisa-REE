@@ -3,8 +3,12 @@
 Roda na CI (rede aberta) para descobrir a URL correta do RSS da Energy Fuels e a
 estrutura do DOM de aclara-re.com/news. Removido apos o ajuste dos parsers.
 """
+import os
 import re
+import sys
 from collections import Counter
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sources import http_util
 
