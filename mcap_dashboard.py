@@ -599,12 +599,21 @@ def fetch_live(stock_sym: str, fx_sym: str) -> dict:
 def build_month_list(price_dict: dict[str, Optional[float]], fx_dict: dict[str, float],
                      shares_dict: dict[str, int], cum_inv_k: dict[str, float],
                      qbar_k: dict[str, float], live_month: str,
-                     start_month: Optional[str] = None) -> list[dict]:
+                     start_month: Optional[str] = None,
+                     annual_until: Optional[str] = None) -> list[dict]:
     """Monta lista de pontos mensais para os gráficos."""
     all_months = sorted(price_dict.keys(), key=month_to_int)
     if start_month:
         sm_int = month_to_int(start_month)
         all_months = [m for m in all_months if month_to_int(m) >= sm_int]
+    # Para períodos anuais (ex: BRE): manter só dezembro até annual_until,
+    # depois mensal
+    if annual_until:
+        au_int = month_to_int(annual_until)
+        all_months = [
+            m for m in all_months
+            if month_to_int(m) > au_int or m.startswith("dez/")
+        ]
     # Forward-fill investimento acumulado (sem gaps entre trimestres)
     cum_filled = _forward_fill_cum(cum_inv_k, all_months)
     rows = []
@@ -1392,6 +1401,7 @@ COMPANIES_CONFIG = [
         "phase_bands":BRE_PHASE_BANDS,
         "footnote":  BRE_FOOTNOTE,
         "start_month": "dez/21",
+        "annual_until": "dez/23",
     },
     {
         "id":        "mei",
@@ -1470,32 +1480,48 @@ def main() -> None:
             live_cache[live_key] = fetch_live(cfg["yf_stock"], cfg["yf_fx"])
         live = live_cache[live_key]
 
-        # Merge: yfinance tem prioridade total; hardcoded é fallback para
-        # períodos não cobertos (ex: pré-IPO, ativo recém-listado)
+        # Hardcoded dicts são autoritativos; yfinance só preenche meses
+        # que ainda não estão no dict (i.e., meses futuros ainda não hardcoded)
         price = dict(cfg["hist_price"])
-        price.update({mk: pv for mk, pv in live["monthly_price"].items() if pv})
+        for mk, pv in live["monthly_price"].items():
+            if pv and mk not in cfg["hist_price"]:
+                price[mk] = pv
 
         fx = dict(cfg["hist_fx"])
-        fx.update({mk: fv for mk, fv in live["monthly_fx"].items() if fv})
+        for mk, fv in live["monthly_fx"].items():
+            if fv and mk not in cfg["hist_fx"]:
+                fx[mk] = fv
 
-        # Ações em circulação: hardcoded histórico + valor atual via yfinance
+        # Ações em circulação: hardcoded histórico + yfinance só para meses novos
         shares = dict(cfg["shares"])
         last_s = list(shares.values())[-1]
-        live_shares = live.get("shares_outstanding")
-        if live_shares:
-            # Atualiza mês corrente (e os últimos 3 meses como margem)
-            for i in range(3):
-                t = dt.date.today().replace(day=1) - dt.timedelta(days=i * 28)
-                shares[month_key(t.year, t.month)] = live_shares
+        live_shares_yf = live.get("shares_outstanding")
         # Estender para meses novos no price sem entrada em shares
         for mk in price:
             if mk not in shares:
-                shares[mk] = live_shares or last_s
+                shares[mk] = live_shares_yf or last_s
 
         months_data = build_month_list(
             price, fx, shares, cfg["cum_inv_k"], cfg["qbar_k"], cur_month,
             start_month=cfg.get("start_month"),
+            annual_until=cfg.get("annual_until"),
         )
+
+        # KPI header: usa yfinance se disponível, senão fallback no último mês conhecido
+        last_close = live["last_close"]
+        last_fx_val = live["last_fx"]
+        last_date = live["last_date"]
+        live_shares = live_shares_yf
+        if not last_close:
+            latest_p = next((r for r in reversed(months_data) if r["priceLocal"]), None)
+            if latest_p:
+                last_close = latest_p["priceLocal"]
+                last_fx_val = last_fx_val or latest_p["fx"]
+                last_date = last_date or latest_p["month"]
+        if not live_shares:
+            latest_s = next((r for r in reversed(months_data) if r["shares"]), None)
+            if latest_s:
+                live_shares = latest_s["shares"]
 
         panel = _build_panel(
             tab_id=cfg["id"],
@@ -1511,10 +1537,10 @@ def main() -> None:
             daily_vol=live["daily_vol_usd"],
             grad_id=cfg["id"],
             live_month=cur_month,
-            last_close=live["last_close"],
-            last_fx=live["last_fx"],
-            last_date=live["last_date"],
-            live_shares=live.get("shares_outstanding"),
+            last_close=last_close,
+            last_fx=last_fx_val,
+            last_date=last_date,
+            live_shares=live_shares,
             is_first=(i_cfg == 0),
         )
         companies_out.append({"label": cfg["label"], "panel_html": panel})
