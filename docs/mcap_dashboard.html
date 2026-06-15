@@ -88,7 +88,7 @@ body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-s
 </div>
 
 
-<div class="panel" id="panel-ara">
+<div class="panel active" id="panel-ara">
   <div class="header">
     <div class="header-left">
       <h1>ARA — <em>Investimento no Portfólio vs. Market Cap</em></h1>
@@ -511,13 +511,20 @@ body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-s
     });
   }
 
-  drawMain(); drawShares(); drawVolume(); drawRatio();
-  window.addEventListener('resize', () => {
+  function drawAll() {
     d3.select('#chart-main-'+TID).selectAll('*').remove();
     d3.select('#chart-shares-'+TID).selectAll('*').remove();
     d3.select('#chart-volume-'+TID).selectAll('*').remove();
     d3.select('#chart-ratio-'+TID).selectAll('*').remove();
     drawMain(); drawShares(); drawVolume(); drawRatio();
+  }
+
+  // Register for lazy draw (panels start hidden)
+  const myIdx = Array.from(document.querySelectorAll('.panel')).findIndex(p => p.id === 'panel-'+TID);
+  _drawRegistry[myIdx] = drawAll;
+
+  window.addEventListener('resize', () => {
+    if (_drawn.has(myIdx)) drawAll();
   });
 })();
 </script>
@@ -945,13 +952,20 @@ body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-s
     });
   }
 
-  drawMain(); drawShares(); drawVolume(); drawRatio();
-  window.addEventListener('resize', () => {
+  function drawAll() {
     d3.select('#chart-main-'+TID).selectAll('*').remove();
     d3.select('#chart-shares-'+TID).selectAll('*').remove();
     d3.select('#chart-volume-'+TID).selectAll('*').remove();
     d3.select('#chart-ratio-'+TID).selectAll('*').remove();
     drawMain(); drawShares(); drawVolume(); drawRatio();
+  }
+
+  // Register for lazy draw (panels start hidden)
+  const myIdx = Array.from(document.querySelectorAll('.panel')).findIndex(p => p.id === 'panel-'+TID);
+  _drawRegistry[myIdx] = drawAll;
+
+  window.addEventListener('resize', () => {
+    if (_drawn.has(myIdx)) drawAll();
   });
 })();
 </script>
@@ -1379,13 +1393,20 @@ body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-s
     });
   }
 
-  drawMain(); drawShares(); drawVolume(); drawRatio();
-  window.addEventListener('resize', () => {
+  function drawAll() {
     d3.select('#chart-main-'+TID).selectAll('*').remove();
     d3.select('#chart-shares-'+TID).selectAll('*').remove();
     d3.select('#chart-volume-'+TID).selectAll('*').remove();
     d3.select('#chart-ratio-'+TID).selectAll('*').remove();
     drawMain(); drawShares(); drawVolume(); drawRatio();
+  }
+
+  // Register for lazy draw (panels start hidden)
+  const myIdx = Array.from(document.querySelectorAll('.panel')).findIndex(p => p.id === 'panel-'+TID);
+  _drawRegistry[myIdx] = drawAll;
+
+  window.addEventListener('resize', () => {
+    if (_drawn.has(myIdx)) drawAll();
   });
 })();
 </script>
@@ -1813,13 +1834,20 @@ body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-s
     });
   }
 
-  drawMain(); drawShares(); drawVolume(); drawRatio();
-  window.addEventListener('resize', () => {
+  function drawAll() {
     d3.select('#chart-main-'+TID).selectAll('*').remove();
     d3.select('#chart-shares-'+TID).selectAll('*').remove();
     d3.select('#chart-volume-'+TID).selectAll('*').remove();
     d3.select('#chart-ratio-'+TID).selectAll('*').remove();
     drawMain(); drawShares(); drawVolume(); drawRatio();
+  }
+
+  // Register for lazy draw (panels start hidden)
+  const myIdx = Array.from(document.querySelectorAll('.panel')).findIndex(p => p.id === 'panel-'+TID);
+  _drawRegistry[myIdx] = drawAll;
+
+  window.addEventListener('resize', () => {
+    if (_drawn.has(myIdx)) drawAll();
   });
 })();
 </script>
@@ -2247,26 +2275,42 @@ body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-s
     });
   }
 
-  drawMain(); drawShares(); drawVolume(); drawRatio();
-  window.addEventListener('resize', () => {
+  function drawAll() {
     d3.select('#chart-main-'+TID).selectAll('*').remove();
     d3.select('#chart-shares-'+TID).selectAll('*').remove();
     d3.select('#chart-volume-'+TID).selectAll('*').remove();
     d3.select('#chart-ratio-'+TID).selectAll('*').remove();
     drawMain(); drawShares(); drawVolume(); drawRatio();
+  }
+
+  // Register for lazy draw (panels start hidden)
+  const myIdx = Array.from(document.querySelectorAll('.panel')).findIndex(p => p.id === 'panel-'+TID);
+  _drawRegistry[myIdx] = drawAll;
+
+  window.addEventListener('resize', () => {
+    if (_drawn.has(myIdx)) drawAll();
   });
 })();
 </script>
 
 
 <div id="tooltip" class="tooltip"></div>
-<div class="updated">Dados ao vivo via Yahoo Finance · Atualizado em 15/06/2026 14:13 UTC</div>
+<div class="updated">Dados ao vivo via Yahoo Finance · Atualizado em 15/06/2026 14:55 UTC</div>
 
 <script>
+
+// Registry: { tabIdx -> drawFn }  — populated by each panel's IIFE
+const _drawRegistry = {};
+const _drawn = new Set();
 
 function switchTab(idx) {
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
   document.querySelectorAll('.panel').forEach((p,i) => p.classList.toggle('active', i===idx));
+  // Draw on first reveal
+  if (!_drawn.has(idx) && _drawRegistry[idx]) {
+    _drawn.add(idx);
+    _drawRegistry[idx]();
+  }
 }
 const tooltip = document.getElementById('tooltip');
 function showTT(event, html) {
@@ -2283,8 +2327,10 @@ function fmtM(v) { return v >= 1000 ? '$'+(v/1000).toFixed(2)+'B' : '$'+v.toFixe
 function fmtMs(v) { return (v/1e6).toFixed(1)+'M'; }
 function fmtLocal(v, cur) { return v != null ? cur+' '+v.toFixed(4) : '— suspensa'; }
 
-// activate first panel
-document.querySelectorAll('.panel')[0].classList.add('active');
+function hideTT() { tooltip.classList.remove('on'); }
+// Draw first panel immediately (it's already visible via HTML class)
+_drawn.add(0);
+if (_drawRegistry[0]) _drawRegistry[0]();
 </script>
 </body>
 </html>

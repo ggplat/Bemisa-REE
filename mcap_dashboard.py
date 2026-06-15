@@ -672,9 +672,18 @@ body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-s
 """
 
 JS_COMMON = """
+// Registry: { tabIdx -> drawFn }  — populated by each panel's IIFE
+const _drawRegistry = {};
+const _drawn = new Set();
+
 function switchTab(idx) {
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
   document.querySelectorAll('.panel').forEach((p,i) => p.classList.toggle('active', i===idx));
+  // Draw on first reveal
+  if (!_drawn.has(idx) && _drawRegistry[idx]) {
+    _drawn.add(idx);
+    _drawRegistry[idx]();
+  }
 }
 const tooltip = document.getElementById('tooltip');
 function showTT(event, html) {
@@ -702,7 +711,7 @@ def _build_panel(
     tab_id: str,
     title: str,
     subtitle: str,
-    currency_label: str,  # "CAD" or "AUD"
+    currency_label: str,
     months: list[dict],
     issuances: list[dict],
     proj_events: list[dict],
@@ -714,6 +723,7 @@ def _build_panel(
     last_close: Optional[float],
     last_fx: Optional[float],
     last_date: Optional[str],
+    is_first: bool = False,
 ) -> str:
     months_js = _js_array(months)
     iss_js    = _js_array(issuances)
@@ -726,7 +736,7 @@ def _build_panel(
     live_date_str  = last_date or "—"
 
     return f"""
-<div class="panel" id="panel-{tab_id}">
+<div class="{'panel active' if is_first else 'panel'}" id="panel-{tab_id}">
   <div class="header">
     <div class="header-left">
       <h1>{title}</h1>
@@ -1149,13 +1159,20 @@ def _build_panel(
     }});
   }}
 
-  drawMain(); drawShares(); drawVolume(); drawRatio();
-  window.addEventListener('resize', () => {{
+  function drawAll() {{
     d3.select('#chart-main-'+TID).selectAll('*').remove();
     d3.select('#chart-shares-'+TID).selectAll('*').remove();
     d3.select('#chart-volume-'+TID).selectAll('*').remove();
     d3.select('#chart-ratio-'+TID).selectAll('*').remove();
     drawMain(); drawShares(); drawVolume(); drawRatio();
+  }}
+
+  // Register for lazy draw (panels start hidden)
+  const myIdx = Array.from(document.querySelectorAll('.panel')).findIndex(p => p.id === 'panel-'+TID);
+  _drawRegistry[myIdx] = drawAll;
+
+  window.addEventListener('resize', () => {{
+    if (_drawn.has(myIdx)) drawAll();
   }});
 }})();
 </script>
@@ -1193,8 +1210,10 @@ def generate_html(companies: list[dict], updated: str) -> str:
 
 <script>
 {JS_COMMON}
-// activate first panel
-document.querySelectorAll('.panel')[0].classList.add('active');
+function hideTT() {{ tooltip.classList.remove('on'); }}
+// Draw first panel immediately (it's already visible via HTML class)
+_drawn.add(0);
+if (_drawRegistry[0]) _drawRegistry[0]();
 </script>
 </body>
 </html>"""
@@ -1307,7 +1326,7 @@ def main() -> None:
     live_cache: dict[str, dict] = {}
 
     companies_out = []
-    for cfg in COMPANIES_CONFIG:
+    for i_cfg, cfg in enumerate(COMPANIES_CONFIG):
         live_key = f"{cfg['yf_stock']}|{cfg['yf_fx']}"
         if live_key not in live_cache:
             live_cache[live_key] = fetch_live(cfg["yf_stock"], cfg["yf_fx"])
@@ -1363,6 +1382,7 @@ def main() -> None:
             last_close=lc,
             last_fx=lf,
             last_date=ld,
+            is_first=(i_cfg == 0),
         )
         companies_out.append({"label": cfg["label"], "panel_html": panel})
 
