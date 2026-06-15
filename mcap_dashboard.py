@@ -29,6 +29,24 @@ def today_month_key() -> str:
     t = dt.date.today()
     return month_key(t.year, t.month)
 
+def month_to_int(mk: str) -> int:
+    """Converte 'jan/23' → 202301 para ordenação cronológica correta."""
+    m, y = mk.split("/")
+    return (2000 + int(y)) * 100 + MESES_PT.index(m) + 1
+
+def _forward_fill_cum(cum_inv_k: dict, all_months: list) -> dict:
+    """Para cada mês, usa o último valor trimestral conhecido (forward-fill cronológico)."""
+    sorted_keys = sorted(cum_inv_k.keys(), key=month_to_int)
+    result: dict = {}
+    last = 0.0
+    ki = 0
+    for m in sorted(all_months, key=month_to_int):
+        while ki < len(sorted_keys) and month_to_int(sorted_keys[ki]) <= month_to_int(m):
+            last = cum_inv_k[sorted_keys[ki]]
+            ki += 1
+        result[m] = last
+    return result
+
 # ── HISTORICAL DATA ───────────────────────────────────────────────────────────
 
 ARA_SHARES: dict[str, int] = {
@@ -580,17 +598,22 @@ def fetch_live(stock_sym: str, fx_sym: str) -> dict:
 
 def build_month_list(price_dict: dict[str, Optional[float]], fx_dict: dict[str, float],
                      shares_dict: dict[str, int], cum_inv_k: dict[str, float],
-                     qbar_k: dict[str, float], live_month: str) -> list[dict]:
+                     qbar_k: dict[str, float], live_month: str,
+                     start_month: Optional[str] = None) -> list[dict]:
     """Monta lista de pontos mensais para os gráficos."""
-    all_months = list(price_dict.keys())
+    all_months = sorted(price_dict.keys(), key=month_to_int)
+    if start_month:
+        sm_int = month_to_int(start_month)
+        all_months = [m for m in all_months if month_to_int(m) >= sm_int]
+    # Forward-fill investimento acumulado (sem gaps entre trimestres)
+    cum_filled = _forward_fill_cum(cum_inv_k, all_months)
     rows = []
     last_shares = list(shares_dict.values())[-1]
-    last_cum = max(cum_inv_k.values()) if cum_inv_k else 0
     for m in all_months:
         p = price_dict.get(m)
         fx = fx_dict.get(m, 0.65)
         shares = shares_dict.get(m, last_shares)
-        cum_k = cum_inv_k.get(m, last_cum if m > max(cum_inv_k.keys(), default="") else 0)
+        cum_k = cum_filled.get(m, 0.0)
         qbar = qbar_k.get(m)
         mcap = (shares * p * fx / 1e6) if p else None
         cum_usdm = cum_k / 1000
@@ -626,6 +649,8 @@ body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-s
        padding: 12px 24px; cursor: pointer; transition: all 0.25s ease; white-space: nowrap; }
 .tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
 .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+.nav-updated { margin-left: auto; align-self: center; font-family: 'DM Mono', monospace;
+               font-size: 9px; color: var(--muted); letter-spacing: 0.1em; padding: 0 4px 12px 24px; white-space: nowrap; }
 .panel { display: none; padding: 40px; }
 .panel.active { display: block; }
 .header { display: flex; justify-content: space-between; align-items: flex-start;
@@ -807,7 +832,7 @@ def _build_panel(
         <span class="kpi-value muted">{live_shares_str}</span>
       </div>
       <div class="kpi">
-        <span class="kpi-label">Atualizado</span>
+        <span class="kpi-label">Fechamento</span>
         <span class="kpi-value live-badge">{live_date_str}</span>
       </div>
     </div>
@@ -1104,8 +1129,16 @@ def _build_panel(
 
   // ── VOLUME CHART ─────────────────────────────────────────────────────────
   function drawVolume() {{
-    if (!VOL_DATA.length) return;
     const cont = document.getElementById('chart-volume-'+TID).parentElement;
+    if (!VOL_DATA.length) {{
+      const svg = d3.select('#chart-volume-'+TID).attr('width', cont.clientWidth - 44).attr('height', 80);
+      svg.append('text').attr('x', (cont.clientWidth - 44) / 2).attr('y', 44)
+        .attr('text-anchor', 'middle').attr('fill', '#4a4a4a')
+        .attr('font-size', '11px').attr('font-family', 'DM Mono,monospace')
+        .attr('letter-spacing', '0.08em')
+        .text('Dados de volume serão exibidos na próxima atualização automática');
+      return;
+    }}
     const W = cont.clientWidth - 44, H = 220;
     const mg = {{top:22, right:84, bottom:48, left:84}};
     const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
@@ -1307,6 +1340,7 @@ def generate_html(companies: list[dict], updated: str) -> str:
 
 <div class="nav">
 {tabs_html}
+<span class="nav-updated">Atualizado em {updated}</span>
 </div>
 
 {panels_html}
@@ -1322,94 +1356,99 @@ def generate_html(companies: list[dict], updated: str) -> str:
 
 COMPANIES_CONFIG = [
     {
-        "id":      "ara",
-        "label":   "ARA — Carina",
-        "title":   "ARA — <em>Investimento no Portfólio vs. Market Cap</em>",
-        "subtitle":"ACLARA RESOURCES INC. · CARINA PROJECT (BRASIL) · TSX: ARA · USD · AÇÕES CORRIGIDAS POR EMISSÃO",
-        "currency":"CAD",
-        "yf_stock":"ARA.TO",
-        "yf_fx":   "CADUSD=X",
-        "shares":  ARA_SHARES,
-        "hist_price": ARA_PRICE_CAD,
-        "hist_fx":    ARA_CADUSD,
-        "cum_inv_k":  ARA_CUM_INV_K,
-        "qbar_k":     ARA_QBAR_K,
-        "issuances":  ARA_ISSUANCES,
+        "id":        "ara",
+        "label":     "ARA — Carina",
+        "title":     "ARA — <em>Investimento no Portfólio vs. Market Cap</em>",
+        "subtitle":  "ACLARA RESOURCES INC. · CARINA PROJECT (BRASIL) · TSX: ARA · USD · AÇÕES CORRIGIDAS POR EMISSÃO",
+        "currency":  "CAD",
+        "yf_stock":  "ARA.TO",
+        "yf_fx":     "CADUSD=X",
+        "shares":    ARA_SHARES,
+        "hist_price":ARA_PRICE_CAD,
+        "hist_fx":   ARA_CADUSD,
+        "cum_inv_k": ARA_CUM_INV_K,
+        "qbar_k":    ARA_QBAR_K,
+        "issuances": ARA_ISSUANCES,
         "proj_events":ARA_PROJ_EVENTS,
         "phase_bands":ARA_PHASE_BANDS,
-        "footnote":   ARA_FOOTNOTE,
+        "footnote":  ARA_FOOTNOTE,
+        "start_month": None,
     },
     {
-        "id":      "bre",
-        "label":   "BRE — Rocha da Rocha",
-        "title":   "BRE — <em>Investimento no Projeto vs. Market Cap</em>",
-        "subtitle":"BRAZILIAN RARE EARTHS LTD. · ASX: BRE · USD · AÇÕES CORRIGIDAS POR EMISSÃO",
-        "currency":"AUD",
-        "yf_stock":"BRE.AX",
-        "yf_fx":   "AUDUSD=X",
-        "shares":  BRE_SHARES,
-        "hist_price": BRE_PRICE_AUD,
-        "hist_fx":    BRE_AUDUSD,
-        "cum_inv_k":  BRE_CUM_INV_K,
-        "qbar_k":     BRE_QBAR_K,
-        "issuances":  BRE_ISSUANCES,
+        "id":        "bre",
+        "label":     "BRE — Rocha da Rocha",
+        "title":     "BRE — <em>Investimento no Projeto vs. Market Cap</em>",
+        "subtitle":  "BRAZILIAN RARE EARTHS LTD. · ASX: BRE · USD · AÇÕES CORRIGIDAS POR EMISSÃO",
+        "currency":  "AUD",
+        "yf_stock":  "BRE.AX",
+        "yf_fx":     "AUDUSD=X",
+        "shares":    BRE_SHARES,
+        "hist_price":BRE_PRICE_AUD,
+        "hist_fx":   BRE_AUDUSD,
+        "cum_inv_k": BRE_CUM_INV_K,
+        "qbar_k":    BRE_QBAR_K,
+        "issuances": BRE_ISSUANCES,
         "proj_events":BRE_PROJ_EVENTS,
         "phase_bands":BRE_PHASE_BANDS,
-        "footnote":   BRE_FOOTNOTE,
+        "footnote":  BRE_FOOTNOTE,
+        "start_month": "dez/21",
     },
     {
-        "id":      "mei",
-        "label":   "MEI — Caldeira",
-        "title":   "MEI — <em>Investimento no Projeto vs. Market Cap</em>",
-        "subtitle":"METEORIC RESOURCES NL · CALDEIRA PROJECT (BRASIL) · ASX: MEI · USD · AÇÕES CORRIGIDAS POR EMISSÃO",
-        "currency":"AUD",
-        "yf_stock":"MEI.AX",
-        "yf_fx":   "AUDUSD=X",
-        "shares":  MEI_SHARES,
-        "hist_price": MEI_PRICE_AUD,
-        "hist_fx":    MEI_AUDUSD,
-        "cum_inv_k":  {k: v * MEI_AUDUSD.get(k, 0.65) for k, v in MEI_CUM_AUD_K.items()},
-        "qbar_k":     {k: v * MEI_AUDUSD.get(k, 0.65) for k, v in MEI_QUARTERLY_AUD_K.items()},
-        "issuances":  MEI_ISSUANCES,
+        "id":        "mei",
+        "label":     "MEI — Caldeira",
+        "title":     "MEI — <em>Investimento no Projeto vs. Market Cap</em>",
+        "subtitle":  "METEORIC RESOURCES NL · CALDEIRA PROJECT (BRASIL) · ASX: MEI · USD · AÇÕES CORRIGIDAS POR EMISSÃO",
+        "currency":  "AUD",
+        "yf_stock":  "MEI.AX",
+        "yf_fx":     "AUDUSD=X",
+        "shares":    MEI_SHARES,
+        "hist_price":MEI_PRICE_AUD,
+        "hist_fx":   MEI_AUDUSD,
+        "cum_inv_k": {k: v * MEI_AUDUSD.get(k, 0.65) for k, v in MEI_CUM_AUD_K.items()},
+        "qbar_k":    {k: v * MEI_AUDUSD.get(k, 0.65) for k, v in MEI_QUARTERLY_AUD_K.items()},
+        "issuances": MEI_ISSUANCES,
         "proj_events":MEI_PROJ_EVENTS,
         "phase_bands":MEI_PHASE_BANDS,
-        "footnote":   MEI_FOOTNOTE,
+        "footnote":  MEI_FOOTNOTE,
+        "start_month": "jan/23",
     },
     {
-        "id":      "sgq",
-        "label":   "SGQ — Araxá",
-        "title":   "SGQ — <em>Investimento no Araxá vs. Market Cap</em>",
-        "subtitle":"ST. GEORGE MINING LTD. · ARAXÁ PROJECT (BRASIL) · ASX: SGQ · USD · AÇÕES CORRIGIDAS POR EMISSÃO",
-        "currency":"AUD",
-        "yf_stock":"SGQ.AX",
-        "yf_fx":   "AUDUSD=X",
-        "shares":  SGQ_SHARES,
-        "hist_price": SGQ_PRICE_AUD,
-        "hist_fx":    SGQ_AUDUSD,
-        "cum_inv_k":  SGQ_CUM_INV_K,
-        "qbar_k":     SGQ_QBAR_K,
-        "issuances":  SGQ_ISSUANCES,
+        "id":        "sgq",
+        "label":     "SGQ — Araxá",
+        "title":     "SGQ — <em>Investimento no Araxá vs. Market Cap</em>",
+        "subtitle":  "ST. GEORGE MINING LTD. · ARAXÁ PROJECT (BRASIL) · ASX: SGQ · USD · AÇÕES CORRIGIDAS POR EMISSÃO",
+        "currency":  "AUD",
+        "yf_stock":  "SGQ.AX",
+        "yf_fx":     "AUDUSD=X",
+        "shares":    SGQ_SHARES,
+        "hist_price":SGQ_PRICE_AUD,
+        "hist_fx":   SGQ_AUDUSD,
+        "cum_inv_k": SGQ_CUM_INV_K,
+        "qbar_k":    SGQ_QBAR_K,
+        "issuances": SGQ_ISSUANCES,
         "proj_events":SGQ_PROJ_EVENTS,
         "phase_bands":SGQ_PHASE_BANDS,
-        "footnote":   SGQ_FOOTNOTE,
+        "footnote":  SGQ_FOOTNOTE,
+        "start_month": "jan/24",
     },
     {
-        "id":      "vmm",
-        "label":   "VMM — Colossus",
-        "title":   "VMM — <em>Investimento no Colossus vs. Market Cap</em>",
-        "subtitle":"VIRIDIS MINING AND MINERALS LTD. · COLOSSUS PROJECT (BRASIL) · ASX: VMM · USD · AÇÕES CORRIGIDAS POR EMISSÃO",
-        "currency":"AUD",
-        "yf_stock":"VMM.AX",
-        "yf_fx":   "AUDUSD=X",
-        "shares":  VMM_SHARES,
-        "hist_price": VMM_PRICE_AUD,
-        "hist_fx":    VMM_AUDUSD,
-        "cum_inv_k":  VMM_CUM_INV_K,
-        "qbar_k":     VMM_QBAR_K,
-        "issuances":  VMM_ISSUANCES,
+        "id":        "vmm",
+        "label":     "VMM — Colossus",
+        "title":     "VMM — <em>Investimento no Colossus vs. Market Cap</em>",
+        "subtitle":  "VIRIDIS MINING AND MINERALS LTD. · COLOSSUS PROJECT (BRASIL) · ASX: VMM · USD · AÇÕES CORRIGIDAS POR EMISSÃO",
+        "currency":  "AUD",
+        "yf_stock":  "VMM.AX",
+        "yf_fx":     "AUDUSD=X",
+        "shares":    VMM_SHARES,
+        "hist_price":VMM_PRICE_AUD,
+        "hist_fx":   VMM_AUDUSD,
+        "cum_inv_k": VMM_CUM_INV_K,
+        "qbar_k":    VMM_QBAR_K,
+        "issuances": VMM_ISSUANCES,
         "proj_events":VMM_PROJ_EVENTS,
         "phase_bands":VMM_PHASE_BANDS,
-        "footnote":   VMM_FOOTNOTE,
+        "footnote":  VMM_FOOTNOTE,
+        "start_month": "jul/23",
     },
 ]
 
@@ -1453,15 +1492,9 @@ def main() -> None:
             if mk not in shares:
                 shares[mk] = live_shares or last_s
 
-        # Extend cum_inv with last known value
-        cum_inv = dict(cfg["cum_inv_k"])
-        last_cum = max(cum_inv.values()) if cum_inv else 0
-        for mk in sorted(price.keys()):
-            if mk not in cum_inv and mk > max(cum_inv.keys(), default=""):
-                cum_inv[mk] = last_cum
-
         months_data = build_month_list(
-            price, fx, shares, cum_inv, cfg["qbar_k"], cur_month
+            price, fx, shares, cfg["cum_inv_k"], cfg["qbar_k"], cur_month,
+            start_month=cfg.get("start_month"),
         )
 
         panel = _build_panel(
