@@ -1,10 +1,10 @@
 """Fonte de noticias/comunicados para TSX e CSE (Canada).
 
 A fonte de cada empresa e configurada em companies.json no campo 'news':
-  - {"type": "rss", "url": "...", "source": "Energy Fuels"} -> feed RSS oficial da empresa
-    (ex.: EFR usa o feed de press releases da Energy Fuels em investors.energyfuels.com)
+  - {"type": "energyfuels", "url": ".../news-releases"} -> press releases oficiais da
+    Energy Fuels (scraping da pagina Q4 em investors.energyfuels.com; cobre UUUU/EFR)
   - {"type": "aclara", "url": "https://www.aclara-re.com/news"} -> scraping do site oficial
-  - {"type": "appia", "url": "https://appiareu.com/feed/"} -> RSS do site (igual a "rss")
+  - {"type": "rss"/"appia", "url": "...", "source": "..."} -> feed RSS do site da empresa
   - {"type": "yahoo", "symbol": "UUUU"} -> feed agregado do Yahoo Finance (yfinance)
 
 Preferimos os comunicados OFICIAIS de cada empresa (RSS proprio ou site), que so trazem
@@ -15,7 +15,6 @@ das demais).
 from __future__ import annotations
 
 import datetime as dt
-import json
 import logging
 import re
 from email.utils import parsedate_to_datetime
@@ -50,7 +49,12 @@ class CanadaSource(Source):
                 anns = self._fetch_rss(company, cfg.get("url") or "https://appiareu.com/feed/",
                                        source_label=cfg.get("source"))
             elif ntype == "aclara":
-                anns = self._fetch_aclara(company, cfg.get("url") or "https://www.aclara-re.com/news")
+                anns = self._fetch_html(company, cfg.get("url") or "https://www.aclara-re.com/news",
+                                        parse_aclara_html)
+            elif ntype == "energyfuels":
+                anns = self._fetch_html(
+                    company, cfg.get("url") or "https://investors.energyfuels.com/news-releases",
+                    parse_energyfuels_html)
             else:  # yahoo
                 anns = self._fetch_yahoo(company, cfg.get("symbol") or company.yf_symbol)
         except Exception as exc:  # noqa: BLE001
@@ -109,12 +113,12 @@ class CanadaSource(Source):
             ))
         return out[:MAX_ITEMS]
 
-    # --- Site oficial da Aclara (https://www.aclara-re.com/news) --------
-    def _fetch_aclara(self, company: Company, url: str) -> list[Announcement]:
+    # --- Sites oficiais (Aclara / Energy Fuels) via scraping ------------
+    def _fetch_html(self, company: Company, url: str, parser) -> list[Announcement]:
         resp = http_util.get(url)
         if resp is None:
             return []
-        return parse_aclara_html(resp.text, company)[:MAX_ITEMS]
+        return parser(resp.text, company)[:MAX_ITEMS]
 
 
 def _yahoo_url(content: dict) -> str:
@@ -149,115 +153,84 @@ def _parse_rss_date(value: str) -> Optional[dt.date]:
         return None
 
 
-# --- Scraping do site oficial da Aclara ---------------------------------
-ACLARA_BASE = "https://www.aclara-re.com"
-
-# datas em varios formatos comuns em sites institucionais (en/pt)
-_ANY_DATE_RE = re.compile(
-    r"\b("
-    r"\d{4}-\d{2}-\d{2}"                                  # 2026-06-11
-    r"|\d{1,2}/\d{1,2}/\d{4}"                             # 11/06/2026
-    r"|[A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4}"              # June 11, 2026 / Jun 11 2026
-    r"|\d{1,2}\s+[A-Za-z]{3,9}\.?\s+\d{4}"                # 11 June 2026
-    r")\b"
-)
-_DATE_FORMATS = (
-    "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y",
-    "%B %d, %Y", "%b %d, %Y", "%B %d %Y", "%b %d %Y",
-    "%d %B %Y", "%d %b %Y",
-)
+# --- Scraping de sites oficiais (Aclara / Energy Fuels) -----------------
+# datas d/m/aaaa (Aclara) ou textuais; o dia vem antes do mes (uso CA/CL/BR)
+_DMY_RE = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b")
 
 
-def _parse_any_date(text: str) -> Optional[dt.date]:
-    m = _ANY_DATE_RE.search(text or "")
+def _parse_dmy(text: str) -> Optional[dt.date]:
+    m = _DMY_RE.search(text or "")
     if not m:
         return None
-    raw = m.group(1).replace(".", "").strip()
-    for fmt in _DATE_FORMATS:
-        try:
-            return dt.datetime.strptime(raw, fmt).date()
-        except ValueError:
-            continue
-    return None
-
-
-def _abs_url(href: str) -> str:
-    if href.startswith("http"):
-        return href
-    return ACLARA_BASE + (href if href.startswith("/") else "/" + href)
+    day, month, year = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    try:
+        return dt.date(year, month, day)
+    except ValueError:
+        return None
 
 
 def parse_aclara_html(html: str, company: Company) -> list[Announcement]:
-    """Extrai os comunicados da pagina de noticias da Aclara (aclara-re.com/news).
+    """Extrai os comunicados do site oficial da Aclara (aclara-re.com/news).
 
-    O site pode renderizar a lista no HTML (cartoes com link + titulo + data) ou
-    embutir os dados num JSON (Next.js __NEXT_DATA__). Tentamos o HTML primeiro e,
-    se nada sair, o JSON. Parser tolerante: validamos via CI e ajustamos seletores.
+    Cada item da colecao Webflow e um '<a class="news-item-box">' com a data
+    ('.text-block-66', formato d/m/aaaa), o titulo ('.news-item-title') e o link
+    direto para o PDF/pagina do comunicado.
     """
-    out = _parse_aclara_cards(html, company)
-    if not out:
-        out = _parse_aclara_next_data(html, company)
-    return out
-
-
-def _parse_aclara_cards(html: str, company: Company) -> list[Announcement]:
     soup = BeautifulSoup(html, "html.parser")
     out: list[Announcement] = []
     seen: set[str] = set()
-    for a in soup.find_all("a", href=True):
-        href = a["href"].strip()
-        # links para a materia em si (paginas de detalhe ficam sob /news/)
-        if "/news/" not in href or href.rstrip("/").endswith("/news"):
+    for box in soup.select("a.news-item-box"):
+        href = (box.get("href") or "").strip()
+        title_el = box.select_one(".news-item-title")
+        title = title_el.get_text(" ", strip=True) if title_el else box.get_text(" ", strip=True)
+        date = _parse_dmy(box.get_text(" ", strip=True))
+        if not href or not title or date is None or href in seen:
             continue
-        container = a.find_parent(["article", "li", "div"]) or a
-        date = _parse_any_date(container.get_text(" ", strip=True))
-        title = a.get_text(" ", strip=True) or (a.get("aria-label") or "").strip()
-        if not title or date is None:
-            continue
-        url = _abs_url(href)
-        if url in seen:
-            continue
-        seen.add(url)
+        seen.add(href)
         out.append(Announcement(
             ticker=company.ticker, exchange=company.exchange, company_name=company.name,
-            date=date, title=title, url=url, price_sensitive=False,
+            date=date, title=title, url=href, price_sensitive=False,
             doc_type="Comunicado", source="Aclara",
         ))
     return out
 
 
-def _parse_aclara_next_data(html: str, company: Company) -> list[Announcement]:
+# link de release da Energy Fuels: investors.energyfuels.com/AAAA-MM-DD-titulo
+_EF_REL_RE = re.compile(r"/(\d{4})-(\d{2})-(\d{2})-([^?#/]+)")
+
+
+def parse_energyfuels_html(html: str, company: Company) -> list[Announcement]:
+    """Extrai os press releases oficiais da Energy Fuels (investors.energyfuels.com).
+
+    A pagina Q4 lista cada comunicado num link '/AAAA-MM-DD-<titulo>'; a data vem
+    na propria URL e o texto do link e a manchete.
+    """
     soup = BeautifulSoup(html, "html.parser")
-    tag = soup.find("script", id="__NEXT_DATA__")
-    if tag is None or not tag.string:
-        return []
-    try:
-        data = json.loads(tag.string)
-    except (ValueError, TypeError):
-        return []
     out: list[Announcement] = []
     seen: set[str] = set()
-
-    def visit(node):
-        if isinstance(node, dict):
-            title = node.get("title") or node.get("headline") or node.get("name")
-            date = _parse_any_date(str(node.get("date") or node.get("publishedAt")
-                                       or node.get("pubDate") or node.get("publishDate") or ""))
-            slug = node.get("slug") or node.get("url") or node.get("link")
-            if isinstance(title, str) and title.strip() and date is not None and slug:
-                url = _abs_url(slug if str(slug).startswith(("http", "/")) else "/news/" + str(slug))
-                if url not in seen:
-                    seen.add(url)
-                    out.append(Announcement(
-                        ticker=company.ticker, exchange=company.exchange,
-                        company_name=company.name, date=date, title=title.strip(),
-                        url=url, price_sensitive=False, doc_type="Comunicado", source="Aclara",
-                    ))
-            for v in node.values():
-                visit(v)
-        elif isinstance(node, list):
-            for v in node:
-                visit(v)
-
-    visit(data)
+    for a in soup.find_all("a", href=True):
+        href = a["href"].strip()
+        m = _EF_REL_RE.search(href)
+        if not m:
+            continue
+        try:
+            date = dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            continue
+        key = href.split("#")[0]
+        if key in seen:
+            continue
+        url = href if href.startswith("http") else "https://investors.energyfuels.com" + (
+            href if href.startswith("/") else "/" + href)
+        title = a.get_text(" ", strip=True)
+        if len(title) < 6:  # link sem manchete: deriva do slug da URL
+            title = m.group(4).replace("-", " ").strip()
+        if not title:
+            continue
+        seen.add(key)
+        out.append(Announcement(
+            ticker=company.ticker, exchange=company.exchange, company_name=company.name,
+            date=date, title=title, url=url, price_sensitive=False,
+            doc_type="Comunicado", source="Energy Fuels",
+        ))
     return out

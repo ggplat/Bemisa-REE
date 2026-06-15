@@ -75,12 +75,12 @@ bolsa). Exemplo:
   próprio site asx.com.au usa hoje —, depois a API JSON legada e, por fim, RSS por
   empresa). A primeira que responder vence. A partir do IP do GitHub Actions costuma
   funcionar; se uma fonte falhar, a coleta das demais empresas continua normalmente.
-- **TSX/CSE** usam os **feeds oficiais de cada empresa** (só comunicados da própria
-  empresa, sem ruído de setor): **EFR** (Energy Fuels) via o RSS de press releases em
-  `investors.energyfuels.com` (cobre NYSE:UUUU / TSX:EFR); **ARA** (Aclara) via scraping
-  do site oficial `aclara-re.com/news`; **API** (Appia) via RSS do site. A fonte de cada
-  empresa fica em `companies.json` (campo `news`). Se uma fonte não retornar, a empresa
-  aparece sem itens (sem quebrar a página). O Yahoo Finance segue disponível como tipo
-  `yahoo` em `sources/canada.py` para quem precisar de um agregador.
+- **TSX/CSE** usam os **comunicados oficiais de cada empresa** (só publicações da própria
+  empresa, sem ruído de setor): **EFR** (Energy Fuels) via scraping da página de press
+  releases em `investors.energyfuels.com/news-releases` (cobre NYSE:UUUU / TSX:EFR);
+  **ARA** (Aclara) via scraping do site oficial `aclara-re.com/news`; **API** (Appia) via
+  RSS do site. A fonte de cada empresa fica em `companies.json` (campo `news`). Se uma
+  fonte não retornar, a empresa aparece sem itens (sem quebrar a página). O Yahoo Finance
+  segue disponível como tipo `yahoo` em `sources/canada.py` para quem precisar de um agregador.
 - O **botão "atualizar"** recarrega a página. Para forçar uma nova coleta sob demanda,
   use **Run workflow** em Actions (a coleta roda no servidor, não no navegador).

@@ -33,7 +33,7 @@
      "news": {"type": "aclara", "url": "https://www.aclara-re.com/news"},
      "projects": [{"name": "Carina", "tier": "principal"}]},
     {"ticker": "EFR", "exchange": "TSX", "name": "Energy Fuels", "yf_symbol": "EFR.TO", "company_url": "https://money.tmx.com/en/quote/EFR",
-     "news": {"type": "rss", "url": "https://investors.energyfuels.com/index.php?s=95&rsspage=43", "source": "Energy Fuels"},
+     "news": {"type": "energyfuels", "url": "https://investors.energyfuels.com/news-releases"},
      "projects": [{"name": "Bahia", "tier": "secundario"}]},
     {"ticker": "API", "exchange": "CSE", "name": "Appia Rare Earths & Uranium", "yf_symbol": "API.CN", "company_url": "https://thecse.com/en/listings?search=API",
      "news": {"type": "appia", "url": "https://appiareu.com/feed/"},

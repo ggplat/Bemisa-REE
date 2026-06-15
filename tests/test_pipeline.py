@@ -195,59 +195,98 @@ class TestCanada(unittest.TestCase):
 
     def test_rss_generic_uses_source_label(self):
         from sources.canada import CanadaSource
-        # EFR (Energy Fuels): RSS oficial; a tag de fonte vem do campo 'source'
-        comp = Company(ticker="EFR", exchange="TSX", name="Energy Fuels",
-                       yf_symbol="EFR.TO", company_url="https://money.tmx.com/en/quote/EFR",
-                       news={"type": "rss", "source": "Energy Fuels",
-                             "url": "https://investors.energyfuels.com/index.php?s=95&rsspage=43"})
+        # tipo 'rss' generico: a tag de fonte vem do campo 'source' (e nao do nome)
+        comp = Company(ticker="XYZ", exchange="TSX", name="Exemplo Mining Corp",
+                       yf_symbol="XYZ.TO", company_url="https://money.tmx.com/en/quote/XYZ",
+                       news={"type": "rss", "source": "Exemplo IR",
+                             "url": "https://exemplo.com/feed"})
         rss = (b'<?xml version="1.0"?><rss><channel>'
-               b'<item><title>Energy Fuels Announces 2025 Results and 2026 Guidance</title>'
-               b'<link>https://investors.energyfuels.com/2026-02-26-results</link>'
+               b'<item><title>Primeiro comunicado</title>'
+               b'<link>https://exemplo.com/a</link>'
                b'<pubDate>Thu, 26 Feb 2026 11:30:00 +0000</pubDate></item>'
-               b'<item><title>Energy Fuels Provides Mid-Year Update</title>'
-               b'<link>https://investors.energyfuels.com/2026-06-11-update</link>'
+               b'<item><title>Segundo comunicado</title>'
+               b'<link>https://exemplo.com/b</link>'
                b'<pubDate>Wed, 11 Jun 2026 12:00:00 +0000</pubDate></item>'
                b'</channel></rss>')
         with mock.patch("sources.canada.http_util.get", return_value=FakeRespBytes(rss)):
             anns = CanadaSource().fetch(comp)
         self.assertEqual(len(anns), 2)
-        self.assertEqual(anns[0].url, "https://investors.energyfuels.com/2026-02-26-results")
+        self.assertEqual(anns[0].url, "https://exemplo.com/a")
         self.assertEqual(anns[1].date, dt.date(2026, 6, 11))
-        self.assertEqual(anns[0].exchange, "TSX")
-        self.assertEqual(anns[0].source, "Energy Fuels")  # rotulo explicito, nao "Energy"
-        self.assertIn("Energy Fuels", anns[0].tags)
+        self.assertEqual(anns[0].source, "Exemplo IR")  # rotulo explicito, nao "Exemplo"
+        self.assertIn("Exemplo IR", anns[0].tags)
 
     def test_aclara_html_parsing(self):
         from sources.canada import parse_aclara_html
         comp = Company(ticker="ARA", exchange="TSX", name="Aclara Resources",
                        yf_symbol="ARA.TO", company_url="https://money.tmx.com/en/quote/ARA",
                        news={"type": "aclara", "url": "https://www.aclara-re.com/news"})
+        # estrutura real da colecao Webflow (aclara-re.com/news)
         html = """
         <html><body>
-          <a href="/news">News</a>  <!-- link para a propria listagem: ignorado -->
-          <div class="news-list">
-            <article>
-              <a href="/news/aclara-gains-eia-approval-for-penco-module">
-                 Aclara gains EIA approval for Penco Module project</a>
-              <span class="date">June 11, 2026</span>
-            </article>
-            <article>
-              <a href="https://www.aclara-re.com/news/feasibility-study-carina">
-                 Aclara Files Results Of Feasibility Study For Carina</a>
-              <time>2026-05-20</time>
-            </article>
+          <div class="news-list w-dyn-items">
+            <div class="news-list-item w-dyn-item" role="listitem">
+              <a class="news-item-box w-inline-block" target="_blank"
+                 href="https://cdn.prod.website-files.com/x/Press%20Release%20ICE.pdf">
+                <div class="div-block-211">
+                  <div class="text-block-66">1/6/2026</div>
+                  <div class="news-item-title">Aclara Receives Favourable Consolidated Evaluation Report</div>
+                </div>
+              </a>
+            </div>
+            <div class="news-list-item w-dyn-item" role="listitem">
+              <a class="news-item-box w-inline-block" target="_blank"
+                 href="https://cdn.prod.website-files.com/x/Tranche2.pdf">
+                <div class="div-block-211">
+                  <div class="text-block-66">13/5/2026</div>
+                  <div class="news-item-title">Aclara announces closing of tranche 2</div>
+                </div>
+              </a>
+            </div>
           </div>
         </body></html>
         """
         anns = parse_aclara_html(html, comp)
         self.assertEqual(len(anns), 2)
-        self.assertEqual(anns[0].title, "Aclara gains EIA approval for Penco Module project")
-        self.assertEqual(anns[0].url,
-                         "https://www.aclara-re.com/news/aclara-gains-eia-approval-for-penco-module")
-        self.assertEqual(anns[0].date, dt.date(2026, 6, 11))
-        self.assertEqual(anns[1].date, dt.date(2026, 5, 20))
+        self.assertEqual(anns[0].title, "Aclara Receives Favourable Consolidated Evaluation Report")
+        self.assertEqual(anns[0].url, "https://cdn.prod.website-files.com/x/Press%20Release%20ICE.pdf")
+        self.assertEqual(anns[0].date, dt.date(2026, 6, 1))    # 1/6/2026 = 1 de junho
+        self.assertEqual(anns[1].date, dt.date(2026, 5, 13))   # 13/5/2026 = 13 de maio
         self.assertEqual(anns[0].exchange, "TSX")
         self.assertEqual(anns[0].source, "Aclara")
+
+    def test_energyfuels_html_parsing(self):
+        from sources.canada import parse_energyfuels_html
+        comp = Company(ticker="EFR", exchange="TSX", name="Energy Fuels",
+                       yf_symbol="EFR.TO", company_url="https://money.tmx.com/en/quote/EFR",
+                       news={"type": "energyfuels"})
+        # links de release da pagina Q4: /AAAA-MM-DD-<titulo>
+        html = """
+        <html><body>
+          <div class="wd_newsfeed_releases">
+            <div class="wd_item">
+              <div class="wd_date">June 11, 2026</div>
+              <a href="https://investors.energyfuels.com/2026-06-11-Energy-Fuels-Expects-to-Achieve-Full-Year-Uranium-Production-Guidance-by-Mid-Year">
+                 Energy Fuels Expects to Achieve Full-Year Uranium Production Guidance by Mid-Year</a>
+            </div>
+            <div class="wd_item">
+              <a href="https://investors.energyfuels.com/2026-05-06-Energy-Fuels-Announces-Q1-2026-Results#assets_43_459-3">
+                 Energy Fuels Announces Q1 2026 Results</a>
+            </div>
+          </div>
+        </body></html>
+        """
+        anns = parse_energyfuels_html(html, comp)
+        self.assertEqual(len(anns), 2)
+        self.assertEqual(anns[0].date, dt.date(2026, 6, 11))
+        self.assertEqual(anns[0].title,
+                         "Energy Fuels Expects to Achieve Full-Year Uranium Production Guidance by Mid-Year")
+        self.assertEqual(anns[1].date, dt.date(2026, 5, 6))
+        # o fragmento #assets... nao deve gerar duplicata
+        self.assertEqual(anns[1].url,
+                         "https://investors.energyfuels.com/2026-05-06-Energy-Fuels-Announces-Q1-2026-Results#assets_43_459-3")
+        self.assertEqual(anns[0].source, "Energy Fuels")
+        self.assertEqual(anns[0].exchange, "TSX")
 
     def test_appia_rss_parsing(self):
         from sources.canada import CanadaSource
