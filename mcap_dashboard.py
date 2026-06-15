@@ -487,11 +487,19 @@ VMM_FOOTNOTE = (
 
 # ── LIVE DATA FETCHING ────────────────────────────────────────────────────────
 
-def _fetch_history(symbol: str, days: int = 400) -> pd.DataFrame:
-    """Busca histórico OHLCV via yfinance. Retorna DataFrame vazio em caso de erro."""
-    start = (dt.date.today() - dt.timedelta(days=days)).isoformat()
+def _fetch_history(symbol: str, days: int = 0) -> pd.DataFrame:
+    """Busca histórico OHLCV via yfinance (período máximo por padrão).
+
+    days=0  → period="max" (todo o histórico disponível)
+    days>0  → últimos N dias
+    """
     try:
-        df = yf.Ticker(symbol).history(start=start, auto_adjust=False)
+        ticker = yf.Ticker(symbol)
+        if days:
+            start = (dt.date.today() - dt.timedelta(days=days)).isoformat()
+            df = ticker.history(start=start, auto_adjust=False)
+        else:
+            df = ticker.history(period="max", auto_adjust=False)
         if df.empty:
             log.warning("%s: histórico vazio", symbol)
             return pd.DataFrame()
@@ -540,31 +548,34 @@ def _daily_vol_usd(df_stock: pd.DataFrame, df_fx: pd.DataFrame) -> list[dict]:
     return rows
 
 
-def fetch_live(stock_sym: str, fx_sym: str, days: int = 400) -> dict:
-    """Retorna dados ao vivo para uma empresa: preços mensais, FX mensais, vol diário."""
+def fetch_shares_outstanding(symbol: str) -> Optional[int]:
+    """Busca ações em circulação atuais via yfinance .info."""
+    try:
+        info = yf.Ticker(symbol).info
+        val = info.get("sharesOutstanding") or info.get("impliedSharesOutstanding")
+        return int(val) if val else None
+    except Exception as exc:  # noqa: BLE001
+        log.warning("%s: sharesOutstanding falhou: %s", symbol, exc)
+        return None
+
+
+def fetch_live(stock_sym: str, fx_sym: str) -> dict:
+    """Retorna dados ao vivo para uma empresa (histórico máximo disponível)."""
     log.info("Buscando %s e %s...", stock_sym, fx_sym)
-    df_stock = _fetch_history(stock_sym, days)
-    df_fx    = _fetch_history(fx_sym, days)
+    df_stock = _fetch_history(stock_sym)
+    df_fx    = _fetch_history(fx_sym)
+    shares   = fetch_shares_outstanding(stock_sym)
+    log.info("  → %s: %d dias, shares=%s", stock_sym,
+             len(df_stock), f"{shares:,}" if shares else "n/a")
     return {
-        "monthly_price": _monthly_avg_close(df_stock),
-        "monthly_fx":    _monthly_avg_fx(df_fx),
-        "daily_vol_usd": _daily_vol_usd(df_stock, df_fx),
-        "last_close":    float(df_stock["Close"].iloc[-1]) if not df_stock.empty and "Close" in df_stock.columns else None,
-        "last_fx":       float(df_fx["Close"].iloc[-1])   if not df_fx.empty   and "Close" in df_fx.columns else None,
-        "last_date":     df_stock.index[-1].isoformat() if not df_stock.empty else None,
+        "monthly_price":      _monthly_avg_close(df_stock),
+        "monthly_fx":         _monthly_avg_fx(df_fx),
+        "daily_vol_usd":      _daily_vol_usd(df_stock, df_fx),
+        "last_close":         float(df_stock["Close"].iloc[-1]) if not df_stock.empty and "Close" in df_stock.columns else None,
+        "last_fx":            float(df_fx["Close"].iloc[-1])    if not df_fx.empty   and "Close" in df_fx.columns else None,
+        "last_date":          df_stock.index[-1].isoformat()    if not df_stock.empty else None,
+        "shares_outstanding": shares,
     }
-
-
-def merge_prices(hist: dict[str, float], live: dict[str, float], months: list[str]) -> dict[str, float]:
-    """Mescla preços históricos com dados ao vivo (live sobrescreve meses recentes)."""
-    merged = dict(hist)
-    for m in months:
-        if m in live and live[m] and m not in hist:
-            merged[m] = live[m]
-        elif m in live and live[m]:
-            # sobrescreve apenas se for mais recente que o último mês histórico
-            merged[m] = live[m]
-    return merged
 
 
 def build_month_list(price_dict: dict[str, Optional[float]], fx_dict: dict[str, float],
@@ -724,17 +735,19 @@ def _build_panel(
     last_close: Optional[float],
     last_fx: Optional[float],
     last_date: Optional[str],
+    live_shares: Optional[int] = None,
     is_first: bool = False,
 ) -> str:
     months_js = _js_array(months)
     iss_js    = _js_array(issuances)
     ev_js     = _js_array(proj_events)
     bands_js  = _js_array(phase_bands)
-    vol_js    = _js_array(daily_vol[-400:] if len(daily_vol) > 400 else daily_vol)
+    vol_js    = _js_array(daily_vol)
 
-    live_price_str = f"{currency_label} {last_close:.4f}" if last_close else "—"
-    live_fx_str    = f"{last_fx:.4f}" if last_fx else "—"
-    live_date_str  = last_date or "—"
+    live_price_str  = f"{currency_label} {last_close:.4f}" if last_close else "—"
+    live_fx_str     = f"{last_fx:.4f}" if last_fx else "—"
+    live_date_str   = last_date or "—"
+    live_shares_str = f"{live_shares/1e6:.1f}M" if live_shares else "—"
 
     return f"""
 <div class="{'panel active' if is_first else 'panel'}" id="panel-{tab_id}">
@@ -746,11 +759,15 @@ def _build_panel(
     <div class="kpi-row" id="kpis-{tab_id}">
       <div class="kpi">
         <span class="kpi-label">Preço Atual</span>
-        <span class="kpi-value gold" id="live-price-{tab_id}">{live_price_str}</span>
+        <span class="kpi-value gold">{live_price_str}</span>
       </div>
       <div class="kpi">
-        <span class="kpi-label">FX Atual</span>
-        <span class="kpi-value muted" id="live-fx-{tab_id}">{live_fx_str}</span>
+        <span class="kpi-label">{currency_label}/USD</span>
+        <span class="kpi-value muted">{live_fx_str}</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Ações em Circ.</span>
+        <span class="kpi-value muted">{live_shares_str}</span>
       </div>
       <div class="kpi">
         <span class="kpi-label">Atualizado</span>
@@ -1327,23 +1344,27 @@ def main() -> None:
             live_cache[live_key] = fetch_live(cfg["yf_stock"], cfg["yf_fx"])
         live = live_cache[live_key]
 
-        # Merge historical + live monthly prices
+        # Merge: yfinance tem prioridade total; hardcoded é fallback para
+        # períodos não cobertos (ex: pré-IPO, ativo recém-listado)
         price = dict(cfg["hist_price"])
-        for mk, pv in live["monthly_price"].items():
-            if mk not in price or mk >= cur_month:
-                price[mk] = pv
+        price.update({mk: pv for mk, pv in live["monthly_price"].items() if pv})
 
         fx = dict(cfg["hist_fx"])
-        for mk, fv in live["monthly_fx"].items():
-            if mk not in fx or mk >= cur_month:
-                fx[mk] = fv
+        fx.update({mk: fv for mk, fv in live["monthly_fx"].items() if fv})
 
-        # Ensure shares dict covers all price months (extend with last known)
+        # Ações em circulação: hardcoded histórico + valor atual via yfinance
         shares = dict(cfg["shares"])
         last_s = list(shares.values())[-1]
+        live_shares = live.get("shares_outstanding")
+        if live_shares:
+            # Atualiza mês corrente (e os últimos 3 meses como margem)
+            for i in range(3):
+                t = dt.date.today().replace(day=1) - dt.timedelta(days=i * 28)
+                shares[month_key(t.year, t.month)] = live_shares
+        # Estender para meses novos no price sem entrada em shares
         for mk in price:
             if mk not in shares:
-                shares[mk] = last_s
+                shares[mk] = live_shares or last_s
 
         # Extend cum_inv with last known value
         cum_inv = dict(cfg["cum_inv_k"])
@@ -1355,11 +1376,6 @@ def main() -> None:
         months_data = build_month_list(
             price, fx, shares, cum_inv, cfg["qbar_k"], cur_month
         )
-
-        # Determine live info
-        lc = live["last_close"]
-        lf = live["last_fx"]
-        ld = live["last_date"]
 
         panel = _build_panel(
             tab_id=cfg["id"],
@@ -1374,9 +1390,10 @@ def main() -> None:
             daily_vol=live["daily_vol_usd"],
             grad_id=cfg["id"],
             live_month=cur_month,
-            last_close=lc,
-            last_fx=lf,
-            last_date=ld,
+            last_close=live["last_close"],
+            last_fx=live["last_fx"],
+            last_date=live["last_date"],
+            live_shares=live.get("shares_outstanding"),
             is_first=(i_cfg == 0),
         )
         companies_out.append({"label": cfg["label"], "panel_html": panel})
