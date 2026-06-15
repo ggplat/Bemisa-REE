@@ -167,12 +167,12 @@ class TestRender(unittest.TestCase):
 class TestCanada(unittest.TestCase):
     def test_yahoo_news_uses_override_symbol(self):
         from sources.canada import CanadaSource
-        # EFR exibido como TSX, mas noticias puxadas pelo ticker UUUU (config 'news')
-        comp = Company(ticker="EFR", exchange="TSX", name="Energy Fuels",
-                       yf_symbol="EFR.TO", company_url="https://money.tmx.com/en/quote/EFR",
-                       news={"type": "yahoo", "symbol": "UUUU"})
+        # tipo 'yahoo' (agregador) continua disponivel e respeita o symbol override
+        comp = Company(ticker="XYZ", exchange="TSX", name="Exemplo Mining",
+                       yf_symbol="XYZ.TO", company_url="https://money.tmx.com/en/quote/XYZ",
+                       news={"type": "yahoo", "symbol": "XYZ"})
         news = [{"id": "1", "content": {
-            "contentType": "STORY", "title": "Energy Fuels production update",
+            "contentType": "STORY", "title": "Exemplo production update",
             "pubDate": "2026-06-11T11:03:57Z",
             "canonicalUrl": {"url": "https://finance.yahoo.com/x.html"},
             "provider": {"displayName": "Zacks"}}}]
@@ -185,13 +185,69 @@ class TestCanada(unittest.TestCase):
             return fake
         with mock.patch("yfinance.Ticker", side_effect=fake_ticker):
             anns = CanadaSource().fetch(comp)
-        self.assertEqual(captured["sym"], "UUUU")  # usou o ticker de noticias, nao EFR.TO
+        self.assertEqual(captured["sym"], "XYZ")  # usou o ticker de noticias do override
         self.assertEqual(len(anns), 1)
         a = anns[0]
         self.assertEqual(a.url, "https://finance.yahoo.com/x.html")
         self.assertEqual(a.exchange, "TSX")   # exibicao mantida como TSX
         self.assertEqual(a.source, "Zacks")
         self.assertIn("Zacks", a.tags)
+
+    def test_rss_generic_uses_source_label(self):
+        from sources.canada import CanadaSource
+        # EFR (Energy Fuels): RSS oficial; a tag de fonte vem do campo 'source'
+        comp = Company(ticker="EFR", exchange="TSX", name="Energy Fuels",
+                       yf_symbol="EFR.TO", company_url="https://money.tmx.com/en/quote/EFR",
+                       news={"type": "rss", "source": "Energy Fuels",
+                             "url": "https://investors.energyfuels.com/index.php?s=95&rsspage=43"})
+        rss = (b'<?xml version="1.0"?><rss><channel>'
+               b'<item><title>Energy Fuels Announces 2025 Results and 2026 Guidance</title>'
+               b'<link>https://investors.energyfuels.com/2026-02-26-results</link>'
+               b'<pubDate>Thu, 26 Feb 2026 11:30:00 +0000</pubDate></item>'
+               b'<item><title>Energy Fuels Provides Mid-Year Update</title>'
+               b'<link>https://investors.energyfuels.com/2026-06-11-update</link>'
+               b'<pubDate>Wed, 11 Jun 2026 12:00:00 +0000</pubDate></item>'
+               b'</channel></rss>')
+        with mock.patch("sources.canada.http_util.get", return_value=FakeRespBytes(rss)):
+            anns = CanadaSource().fetch(comp)
+        self.assertEqual(len(anns), 2)
+        self.assertEqual(anns[0].url, "https://investors.energyfuels.com/2026-02-26-results")
+        self.assertEqual(anns[1].date, dt.date(2026, 6, 11))
+        self.assertEqual(anns[0].exchange, "TSX")
+        self.assertEqual(anns[0].source, "Energy Fuels")  # rotulo explicito, nao "Energy"
+        self.assertIn("Energy Fuels", anns[0].tags)
+
+    def test_aclara_html_parsing(self):
+        from sources.canada import parse_aclara_html
+        comp = Company(ticker="ARA", exchange="TSX", name="Aclara Resources",
+                       yf_symbol="ARA.TO", company_url="https://money.tmx.com/en/quote/ARA",
+                       news={"type": "aclara", "url": "https://www.aclara-re.com/news"})
+        html = """
+        <html><body>
+          <a href="/news">News</a>  <!-- link para a propria listagem: ignorado -->
+          <div class="news-list">
+            <article>
+              <a href="/news/aclara-gains-eia-approval-for-penco-module">
+                 Aclara gains EIA approval for Penco Module project</a>
+              <span class="date">June 11, 2026</span>
+            </article>
+            <article>
+              <a href="https://www.aclara-re.com/news/feasibility-study-carina">
+                 Aclara Files Results Of Feasibility Study For Carina</a>
+              <time>2026-05-20</time>
+            </article>
+          </div>
+        </body></html>
+        """
+        anns = parse_aclara_html(html, comp)
+        self.assertEqual(len(anns), 2)
+        self.assertEqual(anns[0].title, "Aclara gains EIA approval for Penco Module project")
+        self.assertEqual(anns[0].url,
+                         "https://www.aclara-re.com/news/aclara-gains-eia-approval-for-penco-module")
+        self.assertEqual(anns[0].date, dt.date(2026, 6, 11))
+        self.assertEqual(anns[1].date, dt.date(2026, 5, 20))
+        self.assertEqual(anns[0].exchange, "TSX")
+        self.assertEqual(anns[0].source, "Aclara")
 
     def test_appia_rss_parsing(self):
         from sources.canada import CanadaSource

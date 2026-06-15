@@ -15,7 +15,7 @@ comunicado). O dashboard é **gerado automaticamente** e cada linha de notícia
 ree_monitor.py        -> coleta comunicados + calcula a % + gera docs/index.html
 sources/              -> uma fonte por bolsa (interface comum, plugável)
   asx.py              -> ASX: markitdigital -> API JSON legada -> RSS (3 fontes)
-  canada.py           -> TSX/CSE: notícias do Yahoo Finance (yfinance)
+  canada.py           -> TSX/CSE: feeds oficiais das empresas (RSS/site) + Yahoo
 prices.py             -> Yahoo Finance (yfinance): variação % close-to-close
 companies.json        -> empresas monitoradas (edite aqui)
 templates/            -> template do dashboard (mesmo visual do original)
@@ -75,10 +75,12 @@ bolsa). Exemplo:
   próprio site asx.com.au usa hoje —, depois a API JSON legada e, por fim, RSS por
   empresa). A primeira que responder vence. A partir do IP do GitHub Actions costuma
   funcionar; se uma fonte falhar, a coleta das demais empresas continua normalmente.
-- **TSX/CSE** (ARA, EFR, API) usam o feed de **notícias do Yahoo Finance** (press
-  releases e matérias com link direto). A cobertura é menor que a da ASX e são
-  notícias agregadas (nem sempre o filing oficial da bolsa). Se o feed não retornar,
-  a empresa aparece sem itens (sem quebrar a página). Para os **comunicados oficiais**
-  de TSX/CSE, a alternativa é um provedor pago (ex.: QuoteMedia) em `sources/canada.py`.
+- **TSX/CSE** usam os **feeds oficiais de cada empresa** (só comunicados da própria
+  empresa, sem ruído de setor): **EFR** (Energy Fuels) via o RSS de press releases em
+  `investors.energyfuels.com` (cobre NYSE:UUUU / TSX:EFR); **ARA** (Aclara) via scraping
+  do site oficial `aclara-re.com/news`; **API** (Appia) via RSS do site. A fonte de cada
+  empresa fica em `companies.json` (campo `news`). Se uma fonte não retornar, a empresa
+  aparece sem itens (sem quebrar a página). O Yahoo Finance segue disponível como tipo
+  `yahoo` em `sources/canada.py` para quem precisar de um agregador.
 - O **botão "atualizar"** recarrega a página. Para forçar uma nova coleta sob demanda,
   use **Run workflow** em Actions (a coleta roda no servidor, não no navegador).
