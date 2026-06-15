@@ -181,10 +181,13 @@ def parse_aclara_html(html: str, company: Company) -> list[Announcement]:
     seen: set[str] = set()
     for box in soup.select("a.news-item-box"):
         href = (box.get("href") or "").strip()
+        # ignora cartao "destaque" sem link real (href vazio/ancora '#')
+        if not href or href.startswith("#"):
+            continue
         title_el = box.select_one(".news-item-title")
         title = title_el.get_text(" ", strip=True) if title_el else box.get_text(" ", strip=True)
         date = _parse_dmy(box.get_text(" ", strip=True))
-        if not href or not title or date is None or href in seen:
+        if not title or date is None or href in seen:
             continue
         seen.add(href)
         out.append(Announcement(

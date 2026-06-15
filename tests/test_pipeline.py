@@ -225,6 +225,12 @@ class TestCanada(unittest.TestCase):
         html = """
         <html><body>
           <div class="news-list w-dyn-items">
+            <a class="news-item-box w-inline-block" href="#">
+              <div class="div-block-211">
+                <div class="text-block-66">1/6/2026</div>
+                <div class="news-item-title">Aclara Receives Favourable Consolidated Evaluation Report</div>
+              </div>
+            </a>  <!-- cartao destaque sem link real: ignorado -->
             <div class="news-list-item w-dyn-item" role="listitem">
               <a class="news-item-box w-inline-block" target="_blank"
                  href="https://cdn.prod.website-files.com/x/Press%20Release%20ICE.pdf">
