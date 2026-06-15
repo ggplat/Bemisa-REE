@@ -711,6 +711,42 @@ function hideTT() { tooltip.classList.remove('on'); }
 // Draw first panel (already visible via 'active' class in HTML)
 _drawn.add(0);
 if (_drawRegistry[0]) _drawRegistry[0]();
+
+// ── CLIENT-SIDE LIVE DATA REFRESH ────────────────────────────────────────────
+async function _yfinanceFetch(symbol) {
+  try {
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?interval=1d&range=5d';
+    const r = await fetch(url, {credentials: 'omit', mode: 'cors'});
+    if (!r.ok) return null;
+    const d = await r.json();
+    const meta = d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta;
+    return meta ? (meta.regularMarketPrice || meta.previousClose || null) : null;
+  } catch(e) { return null; }
+}
+async function _fxFetch(currency) {
+  try {
+    const r = await fetch('https://open.er-api.com/v6/latest/' + currency);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return (d && d.rates && d.rates['USD']) ? d.rates['USD'] : null;
+  } catch(e) { return null; }
+}
+async function _refreshAllPanels() {
+  const fxCache = {};
+  for (const [tid, meta] of Object.entries(window._panelMeta || {})) {
+    const fxCur = meta.fxCur;
+    if (!fxCache[fxCur]) fxCache[fxCur] = await _fxFetch(fxCur);
+    const price = await _yfinanceFetch(meta.stockSym);
+    const fx    = fxCache[fxCur];
+    if ((price != null || fx != null) && window._panelRefresh && window._panelRefresh[tid]) {
+      window._panelRefresh[tid](price, fx, null);
+    }
+  }
+}
+// Auto-refresh on load (slight delay to let panels register)
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(_refreshAllPanels, 400);
+});
 """
 
 def _js_array(data: list[dict]) -> str:
@@ -724,6 +760,7 @@ def _build_panel(
     title: str,
     subtitle: str,
     currency_label: str,
+    stock_sym: str,
     months: list[dict],
     issuances: list[dict],
     proj_events: list[dict],
@@ -820,6 +857,7 @@ def _build_panel(
   const VOL_DATA  = {vol_js};
   const LIVE_M    = "{live_month}";
   const CUR_LABEL = "{currency_label}";
+  const STOCK_SYM = "{stock_sym}";
   const TID       = "{tab_id}";
   const BG        = "#07090f";
 
@@ -1192,6 +1230,55 @@ def _build_panel(
   window.addEventListener('resize', () => {{
     if (_drawn.has(myIdx)) drawAll();
   }});
+
+  // Register panel metadata for client-side live refresh
+  window._panelMeta = window._panelMeta || {{}};
+  window._panelMeta[TID] = {{stockSym: STOCK_SYM, fxCur: CUR_LABEL}};
+
+  // Live refresh function — updates DATA in-place then redraws
+  window._panelRefresh = window._panelRefresh || {{}};
+  window._panelRefresh[TID] = function(livePrice, liveFX, liveShares) {{
+    const liveEntry = DATA.find(d => d.month === LIVE_M);
+    if (liveEntry) {{
+      if (livePrice != null) liveEntry.priceLocal = livePrice;
+      if (liveFX   != null) liveEntry.fx          = liveFX;
+      const fx = liveEntry.fx;
+      const sh = liveShares != null ? liveShares : liveEntry.shares;
+      if (liveShares != null) liveEntry.shares = sh;
+      if (liveEntry.priceLocal != null) {{
+        liveEntry.mcapUSDm = sh * liveEntry.priceLocal * fx / 1e6;
+        liveEntry.ratio    = liveEntry.cumUSDm > 0.5 ? liveEntry.mcapUSDm / liveEntry.cumUSDm : null;
+      }}
+    }}
+    // Recalc computed KPI strip
+    const listed = DATA.filter(d => d.mcapUSDm != null);
+    if (listed.length) {{
+      const peak   = listed.reduce((a,b) => a.mcapUSDm > b.mcapUSDm ? a : b);
+      const pkR    = DATA.filter(d => d.ratio).reduce((a,b) => a.ratio > b.ratio ? a : b, {{ratio:0}});
+      const lastD  = listed[listed.length-1];
+      const totInv = Math.max(...DATA.map(d => d.cumUSDm));
+      document.getElementById('kpis-calc-'+TID).innerHTML = `
+        <div class="kpi"><span class="kpi-label">Total Investido</span><span class="kpi-value gold">USD ${{totInv.toFixed(0)}}M</span></div>
+        <div class="kpi"><span class="kpi-label">Market Cap Pico</span><span class="kpi-value teal">USD ${{peak.mcapUSDm.toFixed(0)}}M</span></div>
+        <div class="kpi"><span class="kpi-label">Pico em</span><span class="kpi-value muted">${{peak.month}}</span></div>
+        ${{pkR.ratio ? `<div class="kpi"><span class="kpi-label">Múltiplo Pico</span><span class="kpi-value green">${{pkR.ratio.toFixed(1)}}×</span></div>` : ''}}
+        ${{lastD.ratio != null ? `<div class="kpi"><span class="kpi-label">Múltiplo Atual</span><span class="kpi-value muted">${{lastD.ratio.toFixed(1)}}×</span></div>` : ''}}
+      `;
+    }}
+    // Update header KPI badges
+    const kpis = document.getElementById('kpis-'+TID);
+    if (kpis) {{
+      if (livePrice != null) {{
+        const goldEl = kpis.querySelector('.kpi-value.gold');
+        if (goldEl) goldEl.textContent = CUR_LABEL + ' ' + livePrice.toFixed(4);
+      }}
+      const mutedEls = kpis.querySelectorAll('.kpi-value.muted');
+      if (liveFX   != null && mutedEls[0]) mutedEls[0].textContent = liveFX.toFixed(4);
+      if (liveShares != null && mutedEls[1]) mutedEls[1].textContent = (liveShares/1e6).toFixed(1)+'M';
+    }}
+    // Redraw visible charts
+    if (_drawn.has(myIdx)) drawAll();
+  }};
 }})();
 </script>
 """
@@ -1382,6 +1469,7 @@ def main() -> None:
             title=cfg["title"],
             subtitle=cfg["subtitle"],
             currency_label=cfg["currency"],
+            stock_sym=cfg["yf_stock"],
             months=months_data,
             issuances=cfg["issuances"],
             proj_events=cfg["proj_events"],
