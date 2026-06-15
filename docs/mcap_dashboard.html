@@ -82,6 +82,17 @@ body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-s
 </style>
 </head>
 <body>
+<script>
+const _drawRegistry = {};
+const _drawn = new Set();
+function switchTab(idx) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.panel').forEach((p,i) => p.classList.toggle('active', i===idx));
+  if (!_drawn.has(idx) && _drawRegistry[idx]) { _drawn.add(idx); _drawRegistry[idx](); }
+}
+function fmtM(v) { return v >= 1000 ? '$'+(v/1000).toFixed(2)+'B' : '$'+v.toFixed(0)+'M'; }
+function fmtMs(v) { return (v/1e6).toFixed(1)+'M'; }
+</script>
 
 <div class="nav">
 <button class="tab active" onclick="switchTab(0)">ARA — Carina</button><button class="tab" onclick="switchTab(1)">BRE — Rocha da Rocha</button><button class="tab" onclick="switchTab(2)">MEI — Caldeira</button><button class="tab" onclick="switchTab(3)">SGQ — Araxá</button><button class="tab" onclick="switchTab(4)">VMM — Colossus</button>
@@ -2295,23 +2306,8 @@ body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-s
 
 
 <div id="tooltip" class="tooltip"></div>
-<div class="updated">Dados ao vivo via Yahoo Finance · Atualizado em 15/06/2026 14:55 UTC</div>
-
+<div class="updated">Dados ao vivo via Yahoo Finance · Atualizado em 15/06/2026 16:14 UTC</div>
 <script>
-
-// Registry: { tabIdx -> drawFn }  — populated by each panel's IIFE
-const _drawRegistry = {};
-const _drawn = new Set();
-
-function switchTab(idx) {
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
-  document.querySelectorAll('.panel').forEach((p,i) => p.classList.toggle('active', i===idx));
-  // Draw on first reveal
-  if (!_drawn.has(idx) && _drawRegistry[idx]) {
-    _drawn.add(idx);
-    _drawRegistry[idx]();
-  }
-}
 const tooltip = document.getElementById('tooltip');
 function showTT(event, html) {
   tooltip.innerHTML = html; tooltip.classList.add('on'); moveTT(event);
@@ -2323,12 +2319,7 @@ function moveTT(event) {
   tooltip.style.left = lx+'px'; tooltip.style.top = ty+'px';
 }
 function hideTT() { tooltip.classList.remove('on'); }
-function fmtM(v) { return v >= 1000 ? '$'+(v/1000).toFixed(2)+'B' : '$'+v.toFixed(0)+'M'; }
-function fmtMs(v) { return (v/1e6).toFixed(1)+'M'; }
-function fmtLocal(v, cur) { return v != null ? cur+' '+v.toFixed(4) : '— suspensa'; }
-
-function hideTT() { tooltip.classList.remove('on'); }
-// Draw first panel immediately (it's already visible via HTML class)
+// Draw first panel (already visible via 'active' class in HTML)
 _drawn.add(0);
 if (_drawRegistry[0]) _drawRegistry[0]();
 </script>

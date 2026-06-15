@@ -671,20 +671,21 @@ body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-s
            letter-spacing: 0.1em; text-align: center; padding: 10px 0 4px; opacity: 0.6; }
 """
 
-JS_COMMON = """
-// Registry: { tabIdx -> drawFn }  — populated by each panel's IIFE
+# JS that must run BEFORE panels (registry must exist when IIFEs register)
+JS_EARLY = """
 const _drawRegistry = {};
 const _drawn = new Set();
-
 function switchTab(idx) {
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
   document.querySelectorAll('.panel').forEach((p,i) => p.classList.toggle('active', i===idx));
-  // Draw on first reveal
-  if (!_drawn.has(idx) && _drawRegistry[idx]) {
-    _drawn.add(idx);
-    _drawRegistry[idx]();
-  }
+  if (!_drawn.has(idx) && _drawRegistry[idx]) { _drawn.add(idx); _drawRegistry[idx](); }
 }
+function fmtM(v) { return v >= 1000 ? '$'+(v/1000).toFixed(2)+'B' : '$'+v.toFixed(0)+'M'; }
+function fmtMs(v) { return (v/1e6).toFixed(1)+'M'; }
+"""
+
+# JS that runs AFTER panels (tooltip element must exist in DOM)
+JS_LATE = """
 const tooltip = document.getElementById('tooltip');
 function showTT(event, html) {
   tooltip.innerHTML = html; tooltip.classList.add('on'); moveTT(event);
@@ -696,9 +697,9 @@ function moveTT(event) {
   tooltip.style.left = lx+'px'; tooltip.style.top = ty+'px';
 }
 function hideTT() { tooltip.classList.remove('on'); }
-function fmtM(v) { return v >= 1000 ? '$'+(v/1000).toFixed(2)+'B' : '$'+v.toFixed(0)+'M'; }
-function fmtMs(v) { return (v/1e6).toFixed(1)+'M'; }
-function fmtLocal(v, cur) { return v != null ? cur+' '+v.toFixed(4) : '— suspensa'; }
+// Draw first panel (already visible via 'active' class in HTML)
+_drawn.add(0);
+if (_drawRegistry[0]) _drawRegistry[0]();
 """
 
 def _js_array(data: list[dict]) -> str:
@@ -1198,6 +1199,7 @@ def generate_html(companies: list[dict], updated: str) -> str:
 <style>{CSS}</style>
 </head>
 <body>
+<script>{JS_EARLY}</script>
 
 <div class="nav">
 {tabs_html}
@@ -1207,14 +1209,7 @@ def generate_html(companies: list[dict], updated: str) -> str:
 
 <div id="tooltip" class="tooltip"></div>
 <div class="updated">Dados ao vivo via Yahoo Finance · Atualizado em {updated}</div>
-
-<script>
-{JS_COMMON}
-function hideTT() {{ tooltip.classList.remove('on'); }}
-// Draw first panel immediately (it's already visible via HTML class)
-_drawn.add(0);
-if (_drawRegistry[0]) _drawRegistry[0]();
-</script>
+<script>{JS_LATE}</script>
 </body>
 </html>"""
 
