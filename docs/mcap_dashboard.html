@@ -1,0 +1,2290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard REE — Market Cap vs. Investimento</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+:root {
+  --bg: #07090f; --surface: #0d1018; --border: rgba(255,255,255,0.07);
+  --text: #e8e4dc; --muted: #7a7670; --gold: #c9a84c; --teal: #4ec9b0;
+  --green: #6bc98a; --blue: #5ca8e0; --purple: #b08ae0;
+  --orange: #e8a55c; --red: #e05c5c;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif;
+       font-size: 13px; min-height: 100vh; }
+.nav { display: flex; gap: 0; padding: 16px 40px 0 40px;
+       border-bottom: 1px solid var(--border); background: var(--bg);
+       position: sticky; top: 0; z-index: 100; }
+.tab { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.08em;
+       text-transform: uppercase; color: var(--muted); background: none;
+       border: none; border-bottom: 2px solid transparent;
+       padding: 12px 24px; cursor: pointer; transition: all 0.25s ease; white-space: nowrap; }
+.tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
+.tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+.panel { display: none; padding: 40px; }
+.panel.active { display: block; }
+.header { display: flex; justify-content: space-between; align-items: flex-start;
+          margin-bottom: 32px; border-bottom: 1px solid var(--border); padding-bottom: 24px; }
+.header-left h1 { font-family: 'Cormorant Garamond', serif; font-size: 30px;
+                  font-weight: 300; letter-spacing: 0.02em; line-height: 1.15; }
+.header-left h1 em { color: var(--gold); font-style: italic; }
+.header-left p { color: var(--muted); font-size: 11px; margin-top: 6px;
+                 font-family: 'DM Mono', monospace; letter-spacing: 0.06em; }
+.kpi-row { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+.kpi { display: flex; flex-direction: column; align-items: flex-end; }
+.kpi-label { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted);
+             letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 3px; }
+.kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 21px; font-weight: 300; }
+.kpi-value.gold { color: var(--gold); }
+.kpi-value.teal { color: var(--teal); }
+.kpi-value.green { color: var(--green); }
+.kpi-value.muted { color: var(--muted); font-size: 17px; }
+.kpi-value.live-badge { font-family: 'DM Mono', monospace; font-size: 10px;
+                        color: var(--green); border: 1px solid var(--green);
+                        border-radius: 2px; padding: 2px 6px; opacity: 0.8; }
+.card { background: var(--surface); border: 1px solid var(--border);
+        border-radius: 2px; padding: 22px 22px 14px 22px; margin-bottom: 18px; }
+.card-title { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted);
+              letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px; }
+.legend { display: flex; gap: 24px; flex-wrap: wrap;
+          margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); }
+.leg-line { width: 20px; height: 2px; border-radius: 1px; }
+.leg-bar { width: 10px; height: 10px; border-radius: 1px; opacity: 0.65; }
+.leg-dot { width: 8px; height: 8px; border-radius: 50%; }
+.tooltip { position: fixed; background: #131820; border: 1px solid rgba(255,255,255,0.13);
+           border-radius: 3px; padding: 12px 16px; pointer-events: none; opacity: 0;
+           transition: opacity 0.1s; z-index: 1000; min-width: 240px;
+           box-shadow: 0 8px 40px rgba(0,0,0,0.75); }
+.tooltip.on { opacity: 1; }
+.tt-month { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted);
+            margin-bottom: 9px; letter-spacing: 0.08em; }
+.tt-event { font-size: 11px; margin-bottom: 8px; padding: 4px 8px;
+            background: rgba(255,255,255,0.04); border-radius: 2px; line-height: 1.4; }
+.tt-row { display: flex; justify-content: space-between; gap: 16px;
+          margin-bottom: 4px; font-size: 12px; }
+.tt-row .l { color: var(--muted); }
+.tt-row .v { font-family: 'DM Mono', monospace; color: var(--text); }
+.tt-row .v.teal { color: var(--teal); }
+.tt-row .v.gold { color: var(--gold); }
+.tt-row .v.green { color: var(--green); }
+.tt-row .v.red { color: var(--red); }
+.tt-div { border: none; border-top: 1px solid var(--border); margin: 7px 0; }
+.footnote { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace;
+            margin-top: 6px; line-height: 1.9; border-top: 1px solid var(--border); padding-top: 14px; }
+.footnote strong { color: rgba(255,255,255,0.3); }
+.updated { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted);
+           letter-spacing: 0.1em; text-align: center; padding: 10px 0 4px; opacity: 0.6; }
+</style>
+</head>
+<body>
+
+<div class="nav">
+<button class="tab active" onclick="switchTab(0)">ARA — Carina</button><button class="tab" onclick="switchTab(1)">BRE — Rocha da Rocha</button><button class="tab" onclick="switchTab(2)">MEI — Caldeira</button><button class="tab" onclick="switchTab(3)">SGQ — Araxá</button><button class="tab" onclick="switchTab(4)">VMM — Colossus</button>
+</div>
+
+
+<div class="panel" id="panel-ara">
+  <div class="header">
+    <div class="header-left">
+      <h1>ARA — <em>Investimento no Portfólio vs. Market Cap</em></h1>
+      <p>ACLARA RESOURCES INC. · CARINA PROJECT (BRASIL) · TSX: ARA · USD · AÇÕES CORRIGIDAS POR EMISSÃO</p>
+    </div>
+    <div class="kpi-row" id="kpis-ara">
+      <div class="kpi">
+        <span class="kpi-label">Preço Atual</span>
+        <span class="kpi-value gold" id="live-price-ara">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">FX Atual</span>
+        <span class="kpi-value muted" id="live-fx-ara">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Atualizado</span>
+        <span class="kpi-value live-badge">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="kpis-calc-ara" class="kpi-row" style="margin-bottom:24px;justify-content:flex-end;gap:24px;"></div>
+
+  <div class="card">
+    <div class="card-title"></div>
+    <svg id="chart-main-ara"></svg>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-line" style="background:var(--teal)"></div><span>Market Cap (USD)</span></div>
+      <div class="legend-item"><div class="leg-bar" style="background:var(--gold)"></div><span>Investimento Trimestral (USD)</span></div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--gold);opacity:.5"></div><span>Investimento Acumulado (USD)</span></div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--blue)"></div><span>Emissão de Ações</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Ações em Circulação (Milhões) — Evolução da Base Acionária</div>
+    <svg id="chart-shares-ara"></svg>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Volume Financeiro Diário (USD) · Barras Diárias + Média Móvel 20 Dias</div>
+    <svg id="chart-volume-ara"></svg>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-bar" style="background:#e8a55c;opacity:.55"></div><span>Volume Diário (USD)</span></div>
+      <div class="legend-item"><div class="leg-line" style="background:#e8a55c"></div><span>Média Móvel 20 Dias</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Razão Market Cap / Investimento Acumulado — Retorno Implícito do Capital (×)</div>
+    <svg id="chart-ratio-ara"></svg>
+  </div>
+
+  <div class="footnote"><strong>PORTFÓLIO:</strong> Investimento consolidado inclui Penco Module (Chile), Carina Project (Brasil) e, a partir de set/2025, U.S. Separation Project (EUA). Total representado (US$43,3M) reflete jan/2024–set/2025. &nbsp;·&nbsp; <strong>AÇÕES:</strong> base jan/2023 = 162.599.162; RSUs jan/2023 (+624k); RSU nov/2023 (+88k); RSU abr/2024 (+3,1M); Placement fev/2025 (+51,3M @ CAD 0,49); RSU abr/2025 (+2,3M). &nbsp;·&nbsp; <strong>FX:</strong> CAD/USD médio mensal histórico + dados ao vivo yfinance. &nbsp;·&nbsp; <strong>MARKET CAP:</strong> Cotação CAD (TSX: ARA) × CAD/USD × ações em circulação.</div>
+</div>
+
+<script>
+(function() {
+  const DATA      = [{"month": "jan/23", "priceLocal": 0.4386, "fx": 0.745, "shares": 163223177, "mcapUSDm": 53.334315646989005, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/23", "priceLocal": 0.4658, "fx": 0.7435, "shares": 163223177, "mcapUSDm": 56.527826071947096, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/23", "priceLocal": 0.4596, "fx": 0.731, "shares": 163223177, "mcapUSDm": 54.8376990410652, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "abr/23", "priceLocal": 0.4228, "fx": 0.7417, "shares": 163223177, "mcapUSDm": 51.185280125044514, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/23", "priceLocal": 0.4605, "fx": 0.7398, "shares": 163223177, "mcapUSDm": 55.60652917168831, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/23", "priceLocal": 0.5236, "fx": 0.7528, "shares": 163223177, "mcapUSDm": 64.33703984323616, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jul/23", "priceLocal": 0.378, "fx": 0.7566, "shares": 163223177, "mcapUSDm": 46.6809798614796, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/23", "priceLocal": 0.3995, "fx": 0.7419, "shares": 163223177, "mcapUSDm": 48.377562369011855, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/23", "priceLocal": 0.3905, "fx": 0.7384, "shares": 163223177, "mcapUSDm": 47.0646196167004, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "out/23", "priceLocal": 0.41, "fx": 0.7293, "shares": 163223177, "mcapUSDm": 48.80585182430099, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/23", "priceLocal": 0.4152, "fx": 0.7296, "shares": 163311439, "mcapUSDm": 49.471921151354884, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/23", "priceLocal": 0.47, "fx": 0.7457, "shares": 163311439, "mcapUSDm": 57.237229829281006, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jan/24", "priceLocal": 0.5159, "fx": 0.7455, "shares": 163311439, "mcapUSDm": 62.81014286386455, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/24", "priceLocal": 0.4542, "fx": 0.7409, "shares": 163311439, "mcapUSDm": 54.95703958944642, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/24", "priceLocal": 0.4479, "fx": 0.7388, "shares": 163311439, "mcapUSDm": 54.04114657856028, "cumUSDm": 3.338, "qBarUSDm": 3.338, "ratio": 16.189678423774797, "isLive": false}, {"month": "abr/24", "priceLocal": 0.5018, "fx": 0.7314, "shares": 166409223, "mcapUSDm": 61.074933921363964, "cumUSDm": 3.338, "qBarUSDm": null, "ratio": 18.296864566016765, "isLive": false}, {"month": "mai/24", "priceLocal": 0.5458, "fx": 0.7316, "shares": 166409223, "mcapUSDm": 66.44841420304344, "cumUSDm": 3.338, "qBarUSDm": null, "ratio": 19.906654943991445, "isLive": false}, {"month": "jun/24", "priceLocal": 0.5405, "fx": 0.7297, "shares": 166409223, "mcapUSDm": 65.63227181748555, "cumUSDm": 6.841, "qBarUSDm": 3.503, "ratio": 9.59395875127694, "isLive": false}, {"month": "jul/24", "priceLocal": 0.5357, "fx": 0.7291, "shares": 166409223, "mcapUSDm": 64.995926276918, "cumUSDm": 6.841, "qBarUSDm": null, "ratio": 9.500939376833504, "isLive": false}, {"month": "ago/24", "priceLocal": 0.5137, "fx": 0.7322, "shares": 166409223, "mcapUSDm": 62.591690753504224, "cumUSDm": 6.841, "qBarUSDm": null, "ratio": 9.149494336135685, "isLive": false}, {"month": "set/24", "priceLocal": 0.5055, "fx": 0.7384, "shares": 166409223, "mcapUSDm": 62.114106268047586, "cumUSDm": 11.289, "qBarUSDm": 4.448, "ratio": 5.502179667645282, "isLive": false}, {"month": "out/24", "priceLocal": 0.4829, "fx": 0.727, "shares": 166409223, "mcapUSDm": 58.4210030229309, "cumUSDm": 11.289, "qBarUSDm": null, "ratio": 5.175037915043927, "isLive": false}, {"month": "nov/24", "priceLocal": 0.448, "fx": 0.7158, "shares": 166409223, "mcapUSDm": 53.3638433768832, "cumUSDm": 11.289, "qBarUSDm": null, "ratio": 4.727065583920915, "isLive": false}, {"month": "dez/24", "priceLocal": 0.455, "fx": 0.7013, "shares": 166409223, "mcapUSDm": 53.09976858090451, "cumUSDm": 19.688, "qBarUSDm": 8.399, "ratio": 2.697062605694053, "isLive": false}, {"month": "jan/25", "priceLocal": 0.5186, "fx": 0.6948, "shares": 166409223, "mcapUSDm": 59.961117053611424, "cumUSDm": 19.688, "qBarUSDm": null, "ratio": 3.0455666930928196, "isLive": false}, {"month": "fev/25", "priceLocal": 0.5211, "fx": 0.6999, "shares": 217712796, "mcapUSDm": 79.40375158312044, "cumUSDm": 19.688, "qBarUSDm": null, "ratio": 4.033104001580681, "isLive": false}, {"month": "mar/25", "priceLocal": 0.522, "fx": 0.6968, "shares": 217712796, "mcapUSDm": 79.18858820396161, "cumUSDm": 25.368, "qBarUSDm": 5.68, "ratio": 3.121593669345696, "isLive": false}, {"month": "abr/25", "priceLocal": 0.6329, "fx": 0.7158, "shares": 219985221, "mcapUSDm": 99.65986507229023, "cumUSDm": 25.368, "qBarUSDm": null, "ratio": 3.928566109756001, "isLive": false}, {"month": "mai/25", "priceLocal": 0.7267, "fx": 0.7212, "shares": 219985221, "mcapUSDm": 115.29338318462482, "cumUSDm": 25.368, "qBarUSDm": null, "ratio": 4.5448353510180075, "isLive": false}, {"month": "jun/25", "priceLocal": 0.9595, "fx": 0.7312, "shares": 219985221, "mcapUSDm": 154.33863925459443, "cumUSDm": 35.439, "qBarUSDm": 10.071, "ratio": 4.355050629379904, "isLive": false}, {"month": "jul/25", "priceLocal": 1.2591, "fx": 0.7307, "shares": 219985221, "mcapUSDm": 202.39176435983578, "cumUSDm": 35.439, "qBarUSDm": null, "ratio": 5.710989710765986, "isLive": false}, {"month": "ago/25", "priceLocal": 1.4745, "fx": 0.7247, "shares": 219985221, "mcapUSDm": 235.06964060175315, "cumUSDm": 35.439, "qBarUSDm": null, "ratio": 6.63307769975883, "isLive": false}, {"month": "set/25", "priceLocal": 1.9752, "fx": 0.723, "shares": 219985221, "mcapUSDm": 314.1542065593816, "cumUSDm": 43.308, "qBarUSDm": 7.869, "ratio": 7.253953231721196, "isLive": false}, {"month": "out/25", "priceLocal": 3.2505, "fx": 0.7146, "shares": 219985221, "mcapUSDm": 510.9832772309133, "cumUSDm": 43.308, "qBarUSDm": null, "ratio": 11.798819553683229, "isLive": false}, {"month": "nov/25", "priceLocal": 2.523, "fx": 0.7116, "shares": 219985221, "mcapUSDm": 394.95416227406287, "cumUSDm": 43.308, "qBarUSDm": null, "ratio": 9.119658314262097, "isLive": false}, {"month": "dez/25", "priceLocal": 2.2967, "fx": 0.7252, "shares": 219985221, "mcapUSDm": 366.4000893876716, "cumUSDm": 43.308, "qBarUSDm": null, "ratio": 8.460332718843437, "isLive": false}, {"month": "jan/26", "priceLocal": 3.41, "fx": 0.7259, "shares": 219985221, "mcapUSDm": 544.533597260499, "cumUSDm": 43.308, "qBarUSDm": null, "ratio": 12.573510604518773, "isLive": false}, {"month": "fev/26", "priceLocal": 3.3642, "fx": 0.7326, "shares": 219985221, "mcapUSDm": 542.1784178856553, "cumUSDm": 43.308, "qBarUSDm": null, "ratio": 12.519128518649103, "isLive": false}, {"month": "mar/26", "priceLocal": 3.1514, "fx": 0.7338, "shares": 219985221, "mcapUSDm": 508.71523400210776, "cumUSDm": 43.308, "qBarUSDm": null, "ratio": 11.74644947820513, "isLive": false}];
+  const ISSUANCES = [{"month": "jan/23", "label": "RSUs Executivos<br>+624k ações @ CAD 0,34", "shares": 624015}, {"month": "nov/23", "label": "RSU<br>+88k ações @ CAD 0,46", "shares": 88262}, {"month": "abr/24", "label": "RSU<br>+3,1M ações @ CAD 0,48", "shares": 3097784}, {"month": "fev/25", "label": "Placement CAP SA<br>+51,3M ações @ CAD 0,49", "shares": 51303573}, {"month": "abr/25", "label": "RSU<br>+2,3M ações @ CAD 0,51", "shares": 2272425}];
+  const EVENTS    = [{"month": "mar/23", "label": "Anúncio Exploração Brasil", "color": "#63b3ed"}, {"month": "out/23", "label": "Descoberta Depósito Carina", "color": "#e8c97a"}, {"month": "jan/24", "label": "PEA Positivo Carina", "color": "#68d391"}, {"month": "fev/24", "label": "100% Direitos Minerários", "color": "#68d391"}, {"month": "mai/24", "label": "Hatch Ltd contratada — PFS", "color": "#f6ad55"}, {"month": "ago/24", "label": "+77% Recurso Inferido + MoU Gov.", "color": "#e8c97a"}, {"month": "set/24", "label": "Atualização PEA", "color": "#f6ad55"}, {"month": "abr/25", "label": "Inauguração Planta Piloto", "color": "#b794f4"}, {"month": "mai/25", "label": "Aplicação Licença Prévia", "color": "#b794f4"}, {"month": "nov/25", "label": "Entrega PFS", "color": "#68d391"}];
+  const BANDS     = [{"s": "jan/23", "e": "dez/23", "label": "EXPLORAÇÃO INICIAL", "c": "rgba(201,168,76,0.03)"}, {"s": "jan/24", "e": "dez/24", "label": "PEA · ESTUDOS · LICENCIAMENTO", "c": "rgba(92,168,224,0.03)"}, {"s": "jan/25", "e": "mar/26", "label": "PFS · PLANTA PILOTO · LICENÇA", "c": "rgba(107,201,138,0.03)"}];
+  const VOL_DATA  = [];
+  const LIVE_M    = "jun/26";
+  const CUR_LABEL = "CAD";
+  const TID       = "ara";
+  const BG        = "#07090f";
+
+  const monthOrder = DATA.map(d => d.month);
+
+  // Computed KPIs
+  const listed = DATA.filter(d => d.mcapUSDm != null);
+  if (listed.length) {
+    const peak   = listed.reduce((a,b) => a.mcapUSDm > b.mcapUSDm ? a : b);
+    const pkR    = DATA.filter(d => d.ratio).reduce((a,b) => a.ratio > b.ratio ? a : b, {ratio:0});
+    const lastD  = listed[listed.length - 1];
+    const totInv = Math.max(...DATA.map(d => d.cumUSDm));
+    document.getElementById('kpis-calc-'+TID).innerHTML = `
+      <div class="kpi"><span class="kpi-label">Total Investido</span><span class="kpi-value gold">USD ${totInv.toFixed(0)}M</span></div>
+      <div class="kpi"><span class="kpi-label">Market Cap Pico</span><span class="kpi-value teal">USD ${peak.mcapUSDm.toFixed(0)}M</span></div>
+      <div class="kpi"><span class="kpi-label">Pico em</span><span class="kpi-value muted">${peak.month}</span></div>
+      ${pkR.ratio ? `<div class="kpi"><span class="kpi-label">Múltiplo Pico</span><span class="kpi-value green">${pkR.ratio.toFixed(1)}×</span></div>` : ''}
+      ${lastD.ratio != null ? `<div class="kpi"><span class="kpi-label">Múltiplo Atual</span><span class="kpi-value muted">${lastD.ratio.toFixed(1)}×</span></div>` : ''}
+    `;
+  }
+
+  // ── MAIN CHART ──────────────────────────────────────────────────────────────
+  function drawMain() {
+    const cont = document.getElementById('chart-main-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 440;
+    const mg = {top:28, right:84, bottom:50, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-main-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x  = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const listedD = DATA.filter(d => d.mcapUSDm != null);
+    const yL = d3.scaleLinear().domain([0, d3.max(listedD, d => d.mcapUSDm)*1.18]).range([h,0]);
+    const yR = d3.scaleLinear().domain([0, Math.max(
+      d3.max(DATA, d => d.cumUSDm||0),
+      d3.max(DATA, d => d.qBarUSDm||0)
+    )*1.22]).range([h,0]);
+
+    // Phase bands
+    BANDS.forEach(b => {
+      const x0=x(b.s), x1=x(b.e); if(!x0||!x1) return;
+      g.append('rect').attr('x',x0-x.step()*0.4).attr('width',x1-x0+x.step()*0.8)
+        .attr('y',0).attr('height',h).attr('fill',b.c);
+      g.append('text').attr('x',(x0+x1)/2).attr('y',13).attr('text-anchor','middle')
+        .attr('fill','#8a8480').attr('font-size','9px')
+        .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.09em').text(b.label);
+    });
+
+    // Gridlines
+    yL.ticks(7).forEach(t => {
+      g.append('line').attr('x1',0).attr('x2',w).attr('y1',yL(t)).attr('y2',yL(t))
+        .attr('stroke','rgba(255,255,255,0.035)').attr('stroke-width',1);
+    });
+
+    // Quarterly bars
+    const bw = Math.max(5, x.step()*0.36);
+    DATA.filter(d=>d.qBarUSDm!=null).forEach(d => {
+      g.append('rect').attr('x',x(d.month)-bw/2).attr('width',bw)
+        .attr('y',yR(d.qBarUSDm)).attr('height',h-yR(d.qBarUSDm))
+        .attr('fill','rgba(201,168,76,0.45)').attr('rx',1);
+    });
+
+    // Cumulative dashed line
+    g.append('path').datum(DATA).attr('fill','none')
+      .attr('stroke','rgba(201,168,76,0.45)').attr('stroke-width',1.5).attr('stroke-dasharray','5,3')
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>yR(d.cumUSDm)).defined(d=>d.cumUSDm!=null).curve(d3.curveMonotoneX));
+
+    // MCap area
+    const defs = svg.append('defs');
+    const gr = defs.append('linearGradient').attr('id','mcg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr.append('stop').attr('offset','0%').attr('stop-color','#4ec9b0').attr('stop-opacity',0.2);
+    gr.append('stop').attr('offset','100%').attr('stop-color','#4ec9b0').attr('stop-opacity',0.02);
+
+    const mcapDefined = d => d.mcapUSDm != null;
+    g.append('path').datum(DATA).attr('fill','url(#mcg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>yL(d.mcapUSDm||0)).defined(mcapDefined).curve(d3.curveMonotoneX));
+    g.append('path').datum(DATA).attr('fill','none').attr('stroke','#4ec9b0').attr('stroke-width',2)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>yL(d.mcapUSDm)).defined(mcapDefined).curve(d3.curveMonotoneX));
+
+    // Project events
+    EVENTS.forEach(ev => {
+      const xp = x(ev.month); if(!xp) return;
+      const dp = DATA.find(d=>d.month===ev.month);
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke',ev.color).attr('stroke-width',1).attr('stroke-opacity',0.22).attr('stroke-dasharray','3,4');
+      if(dp && dp.mcapUSDm) g.append('circle').attr('cx',xp).attr('cy',yL(dp.mcapUSDm))
+        .attr('r',3).attr('fill',ev.color).attr('stroke',BG).attr('stroke-width',1.5);
+    });
+
+    // Issuance markers
+    ISSUANCES.forEach(iv => {
+      const xp = x(iv.month); if(!xp) return;
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke','#5ca8e0').attr('stroke-width',1).attr('stroke-opacity',0.35).attr('stroke-dasharray','1,3');
+      const ds=5;
+      g.append('polygon').attr('points',`${xp},${h+ds} ${xp+ds},${h+ds*2} ${xp},${h+ds*3} ${xp-ds},${h+ds*2}`)
+        .attr('fill','#5ca8e0').attr('opacity',0.8);
+    });
+
+    // Live dot
+    const liveD = DATA.find(d => d.month === LIVE_M);
+    if (liveD && liveD.mcapUSDm) {
+      g.append('circle').attr('cx',x(LIVE_M)).attr('cy',yL(liveD.mcapUSDm))
+        .attr('r',5).attr('fill','#6bc98a').attr('stroke',BG).attr('stroke-width',2);
+      g.append('text').attr('x',x(LIVE_M)+8).attr('y',yL(liveD.mcapUSDm)-8)
+        .attr('fill','#6bc98a').attr('font-size','9px').attr('font-family','DM Mono,monospace').text('● LIVE');
+    }
+
+    // Peak
+    if (listedD.length) {
+      const peak = listedD.reduce((a,b) => a.mcapUSDm > b.mcapUSDm ? a : b);
+      g.append('circle').attr('cx',x(peak.month)).attr('cy',yL(peak.mcapUSDm))
+        .attr('r',5).attr('fill','none').attr('stroke','#4ec9b0').attr('stroke-width',1.5).attr('stroke-dasharray','3,2');
+      const px = x(peak.month) > w*0.7 ? x(peak.month)-8 : x(peak.month)+8;
+      g.append('text').attr('x',px).attr('y',yL(peak.mcapUSDm)-9)
+        .attr('text-anchor', x(peak.month)>w*0.7?'end':'start')
+        .attr('fill','#4ec9b0').attr('font-size','10px').attr('font-family','DM Mono,monospace')
+        .text(`${fmtM(peak.mcapUSDm)} (${peak.month})`);
+    }
+
+    // Axes
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(yL).ticks(7).tickFormat(d=>fmtM(d)).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#4ec9b0').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('g').attr('transform',`translate(${w},0)`).call(
+      d3.axisRight(yR).ticks(7).tickFormat(d=>`$${d.toFixed(0)}M`).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','rgba(201,168,76,0.75)').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+
+    // Axis labels
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-68)
+      .attr('text-anchor','middle').attr('fill','#4ec9b0').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('MARKET CAP (USD)');
+    g.append('text').attr('transform','rotate(90)').attr('x',h/2).attr('y',-(w+68))
+      .attr('text-anchor','middle').attr('fill','rgba(201,168,76,0.75)').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('INVESTIMENTO (USD)');
+
+    // Hover
+    const hLine = g.append('line').attr('y1',0).attr('y2',h)
+      .attr('stroke','rgba(255,255,255,0.1)').attr('stroke-width',1).style('display','none').attr('pointer-events','none');
+
+    g.append('rect').attr('width',w).attr('height',h).attr('fill','transparent').attr('cursor','crosshair')
+      .on('mousemove', function(event) {
+        const [mx] = d3.pointer(event);
+        let ni=0, md=Infinity;
+        monthOrder.forEach((m,i)=>{ const d2=Math.abs(x(m)-mx); if(d2<md){md=d2;ni=i;} });
+        const d = DATA[ni];
+        hLine.style('display',null).attr('x1',x(d.month)).attr('x2',x(d.month));
+        const ev  = EVENTS.find(e=>e.month===d.month);
+        const iss = ISSUANCES.find(e=>e.month===d.month);
+        const evH  = ev  ? `<div class="tt-event" style="border-left:2px solid ${ev.color};color:${ev.color}">${ev.label}</div>` : '';
+        const isH  = iss ? `<div class="tt-event" style="border-left:2px solid var(--blue);color:var(--blue)">${iss.label}</div>` : '';
+        const liveH = d.isLive ? '<div class="tt-event" style="border-left:2px solid #6bc98a;color:#6bc98a">● Dado ao vivo</div>' : '';
+        showTT(event, `
+          <div class="tt-month">${d.month.toUpperCase()}</div>
+          ${evH}${isH}${liveH}
+          <div class="tt-row"><span class="l">Ações em circulação</span><span class="v">${fmtMs(d.shares)}</span></div>
+          <div class="tt-row"><span class="l">Cotação</span><span class="v">${d.priceLocal != null ? CUR_LABEL+' '+d.priceLocal.toFixed(4) : '— suspensa'}</span></div>
+          <div class="tt-row"><span class="l">${CUR_LABEL}/USD</span><span class="v">${d.fx.toFixed(4)}</span></div>
+          <div class="tt-row"><span class="l">Market Cap</span><span class="v teal">${d.mcapUSDm != null ? fmtM(d.mcapUSDm) : '—'}</span></div>
+          <hr class="tt-div">
+          <div class="tt-row"><span class="l">Invest. Acumulado</span><span class="v gold">$${d.cumUSDm.toFixed(1)}M</span></div>
+          ${d.qBarUSDm!=null?`<div class="tt-row"><span class="l">Invest. Trimestral</span><span class="v">$${d.qBarUSDm.toFixed(1)}M</span></div>`:''}
+          <hr class="tt-div">
+          <div class="tt-row"><span class="l">MCap / Acumulado</span><span class="v ${d.ratio!=null&&d.ratio>=1?'green':'red'}">${d.ratio!=null?d.ratio.toFixed(2)+'×':'—'}</span></div>
+        `);
+      })
+      .on('mousemove.move', moveTT)
+      .on('mouseleave', ()=>{ hLine.style('display','none'); hideTT(); });
+  }
+
+  // ── SHARES CHART ─────────────────────────────────────────────────────────
+  function drawShares() {
+    const cont = document.getElementById('chart-shares-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 180;
+    const mg = {top:20, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-shares-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const y = d3.scaleLinear()
+      .domain([d3.min(DATA,d=>d.shares)*0.93, d3.max(DATA,d=>d.shares)*1.07])
+      .range([h,0]);
+
+    y.ticks(4).forEach(t => {
+      g.append('line').attr('x1',0).attr('x2',w).attr('y1',y(t)).attr('y2',y(t))
+        .attr('stroke','rgba(255,255,255,0.035)').attr('stroke-width',1);
+    });
+
+    const defs2 = svg.append('defs');
+    const gr2 = defs2.append('linearGradient').attr('id','shg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr2.append('stop').attr('offset','0%').attr('stop-color','#5ca8e0').attr('stop-opacity',0.2);
+    gr2.append('stop').attr('offset','100%').attr('stop-color','#5ca8e0').attr('stop-opacity',0.02);
+
+    g.append('path').datum(DATA).attr('fill','url(#shg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>y(d.shares)).curve(d3.curveStepAfter));
+    g.append('path').datum(DATA).attr('fill','none').attr('stroke','#5ca8e0').attr('stroke-width',1.5)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>y(d.shares)).curve(d3.curveStepAfter));
+
+    ISSUANCES.forEach(iv => {
+      const xp = x(iv.month); if(!xp) return;
+      const dp = DATA.find(d=>d.month===iv.month); if(!dp) return;
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke','#5ca8e0').attr('stroke-width',1).attr('stroke-opacity',0.4).attr('stroke-dasharray','2,3');
+      g.append('circle').attr('cx',xp).attr('cy',y(dp.shares)).attr('r',4)
+        .attr('fill','#5ca8e0').attr('stroke',BG).attr('stroke-width',1.5);
+      const addedM = (iv.shares/1e6).toFixed(iv.shares>1e6?1:2);
+      const lx = xp > w*0.8 ? xp-6 : xp+6;
+      g.append('text').attr('x',lx).attr('y',y(dp.shares)-9)
+        .attr('text-anchor', xp>w*0.8?'end':'start')
+        .attr('fill','#5ca8e0').attr('font-size','9px').attr('font-family','DM Mono,monospace')
+        .text(`+${addedM}M`);
+    });
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(4).tickFormat(d=>`${(d/1e6).toFixed(0)}M`).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#5ca8e0').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-68)
+      .attr('text-anchor','middle').attr('fill','#5ca8e0').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('AÇÕES EM CIRCULAÇÃO');
+  }
+
+  // ── VOLUME CHART ─────────────────────────────────────────────────────────
+  function drawVolume() {
+    if (!VOL_DATA.length) return;
+    const cont = document.getElementById('chart-volume-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 220;
+    const mg = {top:22, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-volume-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const parseDate = d3.timeParse('%Y-%m-%d');
+    const vd = VOL_DATA.map(r => ({...r, date: parseDate(r.d)})).filter(r => r.date);
+    vd.sort((a,b) => a.date - b.date);
+
+    const x = d3.scaleTime().domain(d3.extent(vd, d=>d.date)).range([0,w]);
+    const y = d3.scaleLinear().domain([0, d3.max(vd,d=>d.v)*1.18]).range([h,0]);
+
+    const bw = Math.max(1, w / vd.length * 0.8);
+    vd.forEach(d => {
+      g.append('rect').attr('x', x(d.date)-bw/2).attr('width',bw)
+        .attr('y',y(d.v)).attr('height',h-y(d.v)).attr('fill','rgba(232,165,92,0.45)').attr('rx',0.5);
+    });
+
+    // 20-day moving average
+    const ma20 = vd.map((d,i) => {
+      if (i < 19) return null;
+      const slice = vd.slice(i-19, i+1);
+      return {date: d.date, avg: d3.mean(slice, s=>s.v)};
+    }).filter(Boolean);
+
+    if (ma20.length > 1) {
+      g.append('path').datum(ma20).attr('fill','none').attr('stroke','#e8a55c').attr('stroke-width',1.5)
+        .attr('d', d3.line().x(d=>x(d.date)).y(d=>y(d.avg)).curve(d3.curveMonotoneX));
+    }
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).ticks(8).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(d=>{
+      if (d >= 1e6) return '$'+(d/1e6).toFixed(1)+'M';
+      if (d >= 1e3) return '$'+(d/1e3).toFixed(0)+'k';
+      return '$'+d.toFixed(0);
+    }).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#e8a55c').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-72)
+      .attr('text-anchor','middle').attr('fill','#e8a55c').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('VOLUME (USD)');
+  }
+
+  // ── RATIO CHART ──────────────────────────────────────────────────────────
+  function drawRatio() {
+    const rData = DATA.filter(d => d.ratio != null && d.cumUSDm > 0.5);
+    if (!rData.length) return;
+    const cont = document.getElementById('chart-ratio-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 200;
+    const mg = {top:22, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-ratio-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const y = d3.scaleLinear().domain([0, d3.max(rData,d=>d.ratio)*1.12]).range([h,0]);
+
+    g.append('line').attr('x1',0).attr('x2',w).attr('y1',y(1)).attr('y2',y(1))
+      .attr('stroke','rgba(255,255,255,0.13)').attr('stroke-width',1).attr('stroke-dasharray','4,4');
+    g.append('text').attr('x',w+5).attr('y',y(1)+4).attr('fill','#7a7670')
+      .attr('font-size','9px').attr('font-family','DM Mono,monospace').text('1×');
+
+    const defs3 = svg.append('defs');
+    const gr3 = defs3.append('linearGradient').attr('id','ratg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr3.append('stop').attr('offset','0%').attr('stop-color','#6bc98a').attr('stop-opacity',0.25);
+    gr3.append('stop').attr('offset','100%').attr('stop-color','#6bc98a').attr('stop-opacity',0.02);
+
+    g.append('path').datum(rData).attr('fill','url(#ratg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>y(d.ratio)).curve(d3.curveMonotoneX));
+    g.append('path').datum(rData).attr('fill','none').attr('stroke','#6bc98a').attr('stroke-width',2)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>y(d.ratio)).curve(d3.curveMonotoneX));
+
+    const pk = rData.reduce((a,b)=>a.ratio>b.ratio?a:b);
+    g.append('circle').attr('cx',x(pk.month)).attr('cy',y(pk.ratio)).attr('r',4.5).attr('fill','#6bc98a');
+    const pkx = x(pk.month)>w*0.7?x(pk.month)-8:x(pk.month)+8;
+    g.append('text').attr('x',pkx).attr('y',y(pk.ratio)-8)
+      .attr('text-anchor',x(pk.month)>w*0.7?'end':'start')
+      .attr('fill','#6bc98a').attr('font-size','10px').attr('font-family','DM Mono,monospace')
+      .text(`${pk.ratio.toFixed(1)}× (${pk.month})`);
+
+    const lrd = rData[rData.length-1];
+    g.append('circle').attr('cx',x(lrd.month)).attr('cy',y(lrd.ratio)).attr('r',3.5).attr('fill','#6bc98a').attr('opacity',0.7);
+    g.append('text').attr('x',x(lrd.month)-8).attr('y',y(lrd.ratio)-9)
+      .attr('text-anchor','end').attr('fill','rgba(107,201,138,0.65)').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').text(`${lrd.ratio.toFixed(1)}× atual`);
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(d=>`${d.toFixed(1)}×`).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#6bc98a').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+  }
+
+  drawMain(); drawShares(); drawVolume(); drawRatio();
+  window.addEventListener('resize', () => {
+    d3.select('#chart-main-'+TID).selectAll('*').remove();
+    d3.select('#chart-shares-'+TID).selectAll('*').remove();
+    d3.select('#chart-volume-'+TID).selectAll('*').remove();
+    d3.select('#chart-ratio-'+TID).selectAll('*').remove();
+    drawMain(); drawShares(); drawVolume(); drawRatio();
+  });
+})();
+</script>
+
+<div class="panel" id="panel-bre">
+  <div class="header">
+    <div class="header-left">
+      <h1>BRE — <em>Investimento no Projeto vs. Market Cap</em></h1>
+      <p>BRAZILIAN RARE EARTHS LTD. · ASX: BRE · USD · AÇÕES CORRIGIDAS POR EMISSÃO</p>
+    </div>
+    <div class="kpi-row" id="kpis-bre">
+      <div class="kpi">
+        <span class="kpi-label">Preço Atual</span>
+        <span class="kpi-value gold" id="live-price-bre">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">FX Atual</span>
+        <span class="kpi-value muted" id="live-fx-bre">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Atualizado</span>
+        <span class="kpi-value live-badge">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="kpis-calc-bre" class="kpi-row" style="margin-bottom:24px;justify-content:flex-end;gap:24px;"></div>
+
+  <div class="card">
+    <div class="card-title"></div>
+    <svg id="chart-main-bre"></svg>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-line" style="background:var(--teal)"></div><span>Market Cap (USD)</span></div>
+      <div class="legend-item"><div class="leg-bar" style="background:var(--gold)"></div><span>Investimento Trimestral (USD)</span></div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--gold);opacity:.5"></div><span>Investimento Acumulado (USD)</span></div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--blue)"></div><span>Emissão de Ações</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Ações em Circulação (Milhões) — Evolução da Base Acionária</div>
+    <svg id="chart-shares-bre"></svg>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Volume Financeiro Diário (USD) · Barras Diárias + Média Móvel 20 Dias</div>
+    <svg id="chart-volume-bre"></svg>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-bar" style="background:#e8a55c;opacity:.55"></div><span>Volume Diário (USD)</span></div>
+      <div class="legend-item"><div class="leg-line" style="background:#e8a55c"></div><span>Média Móvel 20 Dias</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Razão Market Cap / Investimento Acumulado — Retorno Implícito do Capital (×)</div>
+    <svg id="chart-ratio-bre"></svg>
+  </div>
+
+  <div class="footnote"><strong>INVESTIMENTO:</strong> Gastos E&amp;E convertidos para USD pelas taxas AUD/USD médias. Total acumulado: USD 52M (dez/2021–dez/2025). &nbsp;·&nbsp; <strong>AÇÕES:</strong> IPO dez/2023 (214,1M); Sulista abr/2024 (+8M); Placement jun/2024 (+24,2M @ AUD 3,30); Opções ago/2024 (~3,8M); Placement out/2025 (+25,6M @ AUD 4,68); total 275,8M. &nbsp;·&nbsp; <strong>MARKET CAP:</strong> Exibido a partir do IPO (dez/2023). &nbsp;·&nbsp; <strong>FX:</strong> AUD/USD médio mensal histórico + dados ao vivo yfinance.</div>
+</div>
+
+<script>
+(function() {
+  const DATA      = [{"month": "jan/21", "priceLocal": 0, "fx": 0.752, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/21", "priceLocal": 0, "fx": 0.752, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/21", "priceLocal": 0, "fx": 0.752, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "abr/21", "priceLocal": 0, "fx": 0.752, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/21", "priceLocal": 0, "fx": 0.752, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/21", "priceLocal": 0, "fx": 0.752, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jul/21", "priceLocal": 0, "fx": 0.752, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/21", "priceLocal": 0, "fx": 0.752, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/21", "priceLocal": 0, "fx": 0.752, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "out/21", "priceLocal": 0, "fx": 0.752, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/21", "priceLocal": 0, "fx": 0.752, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/21", "priceLocal": 0, "fx": 0.752, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.416, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jan/22", "priceLocal": 0, "fx": 0.694, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/22", "priceLocal": 0, "fx": 0.694, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/22", "priceLocal": 0, "fx": 0.694, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "abr/22", "priceLocal": 0, "fx": 0.694, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/22", "priceLocal": 0, "fx": 0.694, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/22", "priceLocal": 0, "fx": 0.694, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jul/22", "priceLocal": 0, "fx": 0.694, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/22", "priceLocal": 0, "fx": 0.694, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/22", "priceLocal": 0, "fx": 0.694, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "out/22", "priceLocal": 0, "fx": 0.694, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/22", "priceLocal": 0, "fx": 0.694, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/22", "priceLocal": 0, "fx": 0.694, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 3.459, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jan/23", "priceLocal": 0, "fx": 0.6985, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/23", "priceLocal": 0, "fx": 0.6893, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/23", "priceLocal": 0, "fx": 0.6705, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 3.459, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "abr/23", "priceLocal": 0, "fx": 0.6712, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/23", "priceLocal": 0, "fx": 0.6649, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/23", "priceLocal": 0, "fx": 0.6782, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 4.109, "qBarUSDm": 0.65, "ratio": null, "isLive": false}, {"month": "jul/23", "priceLocal": 0, "fx": 0.668, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/23", "priceLocal": 0, "fx": 0.643, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/23", "priceLocal": 0, "fx": 0.6426, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 5.059, "qBarUSDm": 0.95, "ratio": null, "isLive": false}, {"month": "out/23", "priceLocal": 0, "fx": 0.633, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/23", "priceLocal": 0, "fx": 0.6476, "shares": 180100000, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/23", "priceLocal": 1.47, "fx": 0.659, "shares": 214113606, "mcapUSDm": 207.41827354038, "cumUSDm": 7.809, "qBarUSDm": 2.75, "ratio": 26.5614385376335, "isLive": false}, {"month": "jan/24", "priceLocal": 2.13, "fx": 0.6588, "shares": 214113606, "mcapUSDm": 300.45363293786403, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/24", "priceLocal": 1.86, "fx": 0.6553, "shares": 214113606, "mcapUSDm": 260.974081581948, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/24", "priceLocal": 2.34, "fx": 0.6527, "shares": 214113606, "mcapUSDm": 327.01956448870794, "cumUSDm": 11.259, "qBarUSDm": 3.45, "ratio": 29.045169596652272, "isLive": false}, {"month": "abr/24", "priceLocal": 2.62, "fx": 0.6455, "shares": 222113606, "mcapUSDm": 375.64075160325996, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/24", "priceLocal": 3.08, "fx": 0.6612, "shares": 222113606, "mcapUSDm": 452.333470164576, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/24", "priceLocal": 3.49, "fx": 0.6669, "shares": 246313606, "mcapUSDm": 573.2902380064861, "cumUSDm": 20.559, "qBarUSDm": 9.3, "ratio": 27.885122720292138, "isLive": false}, {"month": "jul/24", "priceLocal": 3.45, "fx": 0.659, "shares": 246313606, "mcapUSDm": 560.0062989213001, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/24", "priceLocal": 4.2, "fx": 0.6635, "shares": 250113606, "mcapUSDm": 696.9915858402001, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/24", "priceLocal": 4.36, "fx": 0.6753, "shares": 250113606, "mcapUSDm": 736.4114910546481, "cumUSDm": 29.859, "qBarUSDm": 9.3, "ratio": 24.66296564033116, "isLive": false}, {"month": "out/24", "priceLocal": 3.98, "fx": 0.6565, "shares": 250113606, "mcapUSDm": 653.51433770922, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/24", "priceLocal": 3.58, "fx": 0.6484, "shares": 250113606, "mcapUSDm": 580.5817104268319, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/24", "priceLocal": 3.69, "fx": 0.6274, "shares": 250113606, "mcapUSDm": 579.039509932236, "cumUSDm": 37.459, "qBarUSDm": 7.6, "ratio": 15.457954294888705, "isLive": false}, {"month": "jan/25", "priceLocal": 3.54, "fx": 0.6197, "shares": 250113606, "mcapUSDm": 548.6837217992281, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/25", "priceLocal": 3.8, "fx": 0.6282, "shares": 250113606, "mcapUSDm": 597.06119569896, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/25", "priceLocal": 3.65, "fx": 0.6294, "shares": 250113606, "mcapUSDm": 574.58848819986, "cumUSDm": 43.059, "qBarUSDm": 5.6, "ratio": 13.344213479176478, "isLive": false}, {"month": "abr/25", "priceLocal": 4.1, "fx": 0.6349, "shares": 250113606, "mcapUSDm": 651.06822664254, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/25", "priceLocal": 4.38, "fx": 0.644, "shares": 250113606, "mcapUSDm": 705.5004507163201, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/25", "priceLocal": 4.9, "fx": 0.6525, "shares": 250113606, "mcapUSDm": 799.6757267835001, "cumUSDm": 50.459, "qBarUSDm": 7.4, "ratio": 15.848029623724212, "isLive": false}, {"month": "jul/25", "priceLocal": 5.1, "fx": 0.644, "shares": 250113606, "mcapUSDm": 821.4731275464, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/25", "priceLocal": 5.3, "fx": 0.6393, "shares": 250113606, "mcapUSDm": 847.4574300737399, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/25", "priceLocal": 5.15, "fx": 0.644, "shares": 250113606, "mcapUSDm": 829.5267856596001, "cumUSDm": 52.459, "qBarUSDm": 2.0, "ratio": 15.812859293154656, "isLive": false}, {"month": "out/25", "priceLocal": 4.68, "fx": 0.645, "shares": 275713606, "mcapUSDm": 832.2690910716, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/25", "priceLocal": 4.5, "fx": 0.6435, "shares": 275713606, "mcapUSDm": 798.3976745745, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/25", "priceLocal": 4.65, "fx": 0.631, "shares": 275713606, "mcapUSDm": 808.9850770449001, "cumUSDm": 52.459, "qBarUSDm": null, "ratio": 15.421282850319297, "isLive": false}];
+  const ISSUANCES = [{"month": "dez/23", "label": "IPO ASX<br>+34M ações @ AUD 1,47", "shares": 34013606}, {"month": "abr/24", "label": "Sulista Acquisition<br>+8M ações", "shares": 8000000}, {"month": "jun/24", "label": "Placement<br>+24,2M ações @ AUD 3,30", "shares": 24200000}, {"month": "ago/24", "label": "Opções exercidas<br>~3,8M ações", "shares": 3800000}, {"month": "out/25", "label": "Placement<br>+25,6M ações @ AUD 4,68", "shares": 25600000}];
+  const EVENTS    = [{"month": "mar/21", "label": "Fundação da Empresa", "color": "#63b3ed"}, {"month": "dez/22", "label": "Captação AUD 20M — notas conversíveis", "color": "#c9a84c"}, {"month": "dez/23", "label": "IPO na ASX", "color": "#68d391"}, {"month": "abr/24", "label": "Aquisição Tenements Sulista", "color": "#e8c97a"}, {"month": "mai/24", "label": "Recurso JORC Classe 2 Monte Alto", "color": "#68d391"}, {"month": "set/24", "label": "Atualização Recursos + MoU USDOE", "color": "#f6ad55"}, {"month": "out/25", "label": "Acordo 10 anos Carester + AUD 120M", "color": "#f6ad55"}];
+  const BANDS     = [{"s": "jan/21", "e": "nov/23", "label": "PRÉ-IPO", "c": "rgba(201,168,76,0.03)"}, {"s": "dez/23", "e": "dez/24", "label": "IPO · EXPLORAÇÃO", "c": "rgba(92,168,224,0.03)"}, {"s": "jan/25", "e": "dez/25", "label": "SCOPING STUDY · ACORDOS", "c": "rgba(107,201,138,0.03)"}];
+  const VOL_DATA  = [];
+  const LIVE_M    = "jun/26";
+  const CUR_LABEL = "AUD";
+  const TID       = "bre";
+  const BG        = "#07090f";
+
+  const monthOrder = DATA.map(d => d.month);
+
+  // Computed KPIs
+  const listed = DATA.filter(d => d.mcapUSDm != null);
+  if (listed.length) {
+    const peak   = listed.reduce((a,b) => a.mcapUSDm > b.mcapUSDm ? a : b);
+    const pkR    = DATA.filter(d => d.ratio).reduce((a,b) => a.ratio > b.ratio ? a : b, {ratio:0});
+    const lastD  = listed[listed.length - 1];
+    const totInv = Math.max(...DATA.map(d => d.cumUSDm));
+    document.getElementById('kpis-calc-'+TID).innerHTML = `
+      <div class="kpi"><span class="kpi-label">Total Investido</span><span class="kpi-value gold">USD ${totInv.toFixed(0)}M</span></div>
+      <div class="kpi"><span class="kpi-label">Market Cap Pico</span><span class="kpi-value teal">USD ${peak.mcapUSDm.toFixed(0)}M</span></div>
+      <div class="kpi"><span class="kpi-label">Pico em</span><span class="kpi-value muted">${peak.month}</span></div>
+      ${pkR.ratio ? `<div class="kpi"><span class="kpi-label">Múltiplo Pico</span><span class="kpi-value green">${pkR.ratio.toFixed(1)}×</span></div>` : ''}
+      ${lastD.ratio != null ? `<div class="kpi"><span class="kpi-label">Múltiplo Atual</span><span class="kpi-value muted">${lastD.ratio.toFixed(1)}×</span></div>` : ''}
+    `;
+  }
+
+  // ── MAIN CHART ──────────────────────────────────────────────────────────────
+  function drawMain() {
+    const cont = document.getElementById('chart-main-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 440;
+    const mg = {top:28, right:84, bottom:50, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-main-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x  = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const listedD = DATA.filter(d => d.mcapUSDm != null);
+    const yL = d3.scaleLinear().domain([0, d3.max(listedD, d => d.mcapUSDm)*1.18]).range([h,0]);
+    const yR = d3.scaleLinear().domain([0, Math.max(
+      d3.max(DATA, d => d.cumUSDm||0),
+      d3.max(DATA, d => d.qBarUSDm||0)
+    )*1.22]).range([h,0]);
+
+    // Phase bands
+    BANDS.forEach(b => {
+      const x0=x(b.s), x1=x(b.e); if(!x0||!x1) return;
+      g.append('rect').attr('x',x0-x.step()*0.4).attr('width',x1-x0+x.step()*0.8)
+        .attr('y',0).attr('height',h).attr('fill',b.c);
+      g.append('text').attr('x',(x0+x1)/2).attr('y',13).attr('text-anchor','middle')
+        .attr('fill','#8a8480').attr('font-size','9px')
+        .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.09em').text(b.label);
+    });
+
+    // Gridlines
+    yL.ticks(7).forEach(t => {
+      g.append('line').attr('x1',0).attr('x2',w).attr('y1',yL(t)).attr('y2',yL(t))
+        .attr('stroke','rgba(255,255,255,0.035)').attr('stroke-width',1);
+    });
+
+    // Quarterly bars
+    const bw = Math.max(5, x.step()*0.36);
+    DATA.filter(d=>d.qBarUSDm!=null).forEach(d => {
+      g.append('rect').attr('x',x(d.month)-bw/2).attr('width',bw)
+        .attr('y',yR(d.qBarUSDm)).attr('height',h-yR(d.qBarUSDm))
+        .attr('fill','rgba(201,168,76,0.45)').attr('rx',1);
+    });
+
+    // Cumulative dashed line
+    g.append('path').datum(DATA).attr('fill','none')
+      .attr('stroke','rgba(201,168,76,0.45)').attr('stroke-width',1.5).attr('stroke-dasharray','5,3')
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>yR(d.cumUSDm)).defined(d=>d.cumUSDm!=null).curve(d3.curveMonotoneX));
+
+    // MCap area
+    const defs = svg.append('defs');
+    const gr = defs.append('linearGradient').attr('id','mcg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr.append('stop').attr('offset','0%').attr('stop-color','#4ec9b0').attr('stop-opacity',0.2);
+    gr.append('stop').attr('offset','100%').attr('stop-color','#4ec9b0').attr('stop-opacity',0.02);
+
+    const mcapDefined = d => d.mcapUSDm != null;
+    g.append('path').datum(DATA).attr('fill','url(#mcg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>yL(d.mcapUSDm||0)).defined(mcapDefined).curve(d3.curveMonotoneX));
+    g.append('path').datum(DATA).attr('fill','none').attr('stroke','#4ec9b0').attr('stroke-width',2)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>yL(d.mcapUSDm)).defined(mcapDefined).curve(d3.curveMonotoneX));
+
+    // Project events
+    EVENTS.forEach(ev => {
+      const xp = x(ev.month); if(!xp) return;
+      const dp = DATA.find(d=>d.month===ev.month);
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke',ev.color).attr('stroke-width',1).attr('stroke-opacity',0.22).attr('stroke-dasharray','3,4');
+      if(dp && dp.mcapUSDm) g.append('circle').attr('cx',xp).attr('cy',yL(dp.mcapUSDm))
+        .attr('r',3).attr('fill',ev.color).attr('stroke',BG).attr('stroke-width',1.5);
+    });
+
+    // Issuance markers
+    ISSUANCES.forEach(iv => {
+      const xp = x(iv.month); if(!xp) return;
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke','#5ca8e0').attr('stroke-width',1).attr('stroke-opacity',0.35).attr('stroke-dasharray','1,3');
+      const ds=5;
+      g.append('polygon').attr('points',`${xp},${h+ds} ${xp+ds},${h+ds*2} ${xp},${h+ds*3} ${xp-ds},${h+ds*2}`)
+        .attr('fill','#5ca8e0').attr('opacity',0.8);
+    });
+
+    // Live dot
+    const liveD = DATA.find(d => d.month === LIVE_M);
+    if (liveD && liveD.mcapUSDm) {
+      g.append('circle').attr('cx',x(LIVE_M)).attr('cy',yL(liveD.mcapUSDm))
+        .attr('r',5).attr('fill','#6bc98a').attr('stroke',BG).attr('stroke-width',2);
+      g.append('text').attr('x',x(LIVE_M)+8).attr('y',yL(liveD.mcapUSDm)-8)
+        .attr('fill','#6bc98a').attr('font-size','9px').attr('font-family','DM Mono,monospace').text('● LIVE');
+    }
+
+    // Peak
+    if (listedD.length) {
+      const peak = listedD.reduce((a,b) => a.mcapUSDm > b.mcapUSDm ? a : b);
+      g.append('circle').attr('cx',x(peak.month)).attr('cy',yL(peak.mcapUSDm))
+        .attr('r',5).attr('fill','none').attr('stroke','#4ec9b0').attr('stroke-width',1.5).attr('stroke-dasharray','3,2');
+      const px = x(peak.month) > w*0.7 ? x(peak.month)-8 : x(peak.month)+8;
+      g.append('text').attr('x',px).attr('y',yL(peak.mcapUSDm)-9)
+        .attr('text-anchor', x(peak.month)>w*0.7?'end':'start')
+        .attr('fill','#4ec9b0').attr('font-size','10px').attr('font-family','DM Mono,monospace')
+        .text(`${fmtM(peak.mcapUSDm)} (${peak.month})`);
+    }
+
+    // Axes
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(yL).ticks(7).tickFormat(d=>fmtM(d)).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#4ec9b0').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('g').attr('transform',`translate(${w},0)`).call(
+      d3.axisRight(yR).ticks(7).tickFormat(d=>`$${d.toFixed(0)}M`).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','rgba(201,168,76,0.75)').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+
+    // Axis labels
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-68)
+      .attr('text-anchor','middle').attr('fill','#4ec9b0').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('MARKET CAP (USD)');
+    g.append('text').attr('transform','rotate(90)').attr('x',h/2).attr('y',-(w+68))
+      .attr('text-anchor','middle').attr('fill','rgba(201,168,76,0.75)').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('INVESTIMENTO (USD)');
+
+    // Hover
+    const hLine = g.append('line').attr('y1',0).attr('y2',h)
+      .attr('stroke','rgba(255,255,255,0.1)').attr('stroke-width',1).style('display','none').attr('pointer-events','none');
+
+    g.append('rect').attr('width',w).attr('height',h).attr('fill','transparent').attr('cursor','crosshair')
+      .on('mousemove', function(event) {
+        const [mx] = d3.pointer(event);
+        let ni=0, md=Infinity;
+        monthOrder.forEach((m,i)=>{ const d2=Math.abs(x(m)-mx); if(d2<md){md=d2;ni=i;} });
+        const d = DATA[ni];
+        hLine.style('display',null).attr('x1',x(d.month)).attr('x2',x(d.month));
+        const ev  = EVENTS.find(e=>e.month===d.month);
+        const iss = ISSUANCES.find(e=>e.month===d.month);
+        const evH  = ev  ? `<div class="tt-event" style="border-left:2px solid ${ev.color};color:${ev.color}">${ev.label}</div>` : '';
+        const isH  = iss ? `<div class="tt-event" style="border-left:2px solid var(--blue);color:var(--blue)">${iss.label}</div>` : '';
+        const liveH = d.isLive ? '<div class="tt-event" style="border-left:2px solid #6bc98a;color:#6bc98a">● Dado ao vivo</div>' : '';
+        showTT(event, `
+          <div class="tt-month">${d.month.toUpperCase()}</div>
+          ${evH}${isH}${liveH}
+          <div class="tt-row"><span class="l">Ações em circulação</span><span class="v">${fmtMs(d.shares)}</span></div>
+          <div class="tt-row"><span class="l">Cotação</span><span class="v">${d.priceLocal != null ? CUR_LABEL+' '+d.priceLocal.toFixed(4) : '— suspensa'}</span></div>
+          <div class="tt-row"><span class="l">${CUR_LABEL}/USD</span><span class="v">${d.fx.toFixed(4)}</span></div>
+          <div class="tt-row"><span class="l">Market Cap</span><span class="v teal">${d.mcapUSDm != null ? fmtM(d.mcapUSDm) : '—'}</span></div>
+          <hr class="tt-div">
+          <div class="tt-row"><span class="l">Invest. Acumulado</span><span class="v gold">$${d.cumUSDm.toFixed(1)}M</span></div>
+          ${d.qBarUSDm!=null?`<div class="tt-row"><span class="l">Invest. Trimestral</span><span class="v">$${d.qBarUSDm.toFixed(1)}M</span></div>`:''}
+          <hr class="tt-div">
+          <div class="tt-row"><span class="l">MCap / Acumulado</span><span class="v ${d.ratio!=null&&d.ratio>=1?'green':'red'}">${d.ratio!=null?d.ratio.toFixed(2)+'×':'—'}</span></div>
+        `);
+      })
+      .on('mousemove.move', moveTT)
+      .on('mouseleave', ()=>{ hLine.style('display','none'); hideTT(); });
+  }
+
+  // ── SHARES CHART ─────────────────────────────────────────────────────────
+  function drawShares() {
+    const cont = document.getElementById('chart-shares-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 180;
+    const mg = {top:20, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-shares-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const y = d3.scaleLinear()
+      .domain([d3.min(DATA,d=>d.shares)*0.93, d3.max(DATA,d=>d.shares)*1.07])
+      .range([h,0]);
+
+    y.ticks(4).forEach(t => {
+      g.append('line').attr('x1',0).attr('x2',w).attr('y1',y(t)).attr('y2',y(t))
+        .attr('stroke','rgba(255,255,255,0.035)').attr('stroke-width',1);
+    });
+
+    const defs2 = svg.append('defs');
+    const gr2 = defs2.append('linearGradient').attr('id','shg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr2.append('stop').attr('offset','0%').attr('stop-color','#5ca8e0').attr('stop-opacity',0.2);
+    gr2.append('stop').attr('offset','100%').attr('stop-color','#5ca8e0').attr('stop-opacity',0.02);
+
+    g.append('path').datum(DATA).attr('fill','url(#shg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>y(d.shares)).curve(d3.curveStepAfter));
+    g.append('path').datum(DATA).attr('fill','none').attr('stroke','#5ca8e0').attr('stroke-width',1.5)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>y(d.shares)).curve(d3.curveStepAfter));
+
+    ISSUANCES.forEach(iv => {
+      const xp = x(iv.month); if(!xp) return;
+      const dp = DATA.find(d=>d.month===iv.month); if(!dp) return;
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke','#5ca8e0').attr('stroke-width',1).attr('stroke-opacity',0.4).attr('stroke-dasharray','2,3');
+      g.append('circle').attr('cx',xp).attr('cy',y(dp.shares)).attr('r',4)
+        .attr('fill','#5ca8e0').attr('stroke',BG).attr('stroke-width',1.5);
+      const addedM = (iv.shares/1e6).toFixed(iv.shares>1e6?1:2);
+      const lx = xp > w*0.8 ? xp-6 : xp+6;
+      g.append('text').attr('x',lx).attr('y',y(dp.shares)-9)
+        .attr('text-anchor', xp>w*0.8?'end':'start')
+        .attr('fill','#5ca8e0').attr('font-size','9px').attr('font-family','DM Mono,monospace')
+        .text(`+${addedM}M`);
+    });
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(4).tickFormat(d=>`${(d/1e6).toFixed(0)}M`).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#5ca8e0').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-68)
+      .attr('text-anchor','middle').attr('fill','#5ca8e0').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('AÇÕES EM CIRCULAÇÃO');
+  }
+
+  // ── VOLUME CHART ─────────────────────────────────────────────────────────
+  function drawVolume() {
+    if (!VOL_DATA.length) return;
+    const cont = document.getElementById('chart-volume-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 220;
+    const mg = {top:22, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-volume-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const parseDate = d3.timeParse('%Y-%m-%d');
+    const vd = VOL_DATA.map(r => ({...r, date: parseDate(r.d)})).filter(r => r.date);
+    vd.sort((a,b) => a.date - b.date);
+
+    const x = d3.scaleTime().domain(d3.extent(vd, d=>d.date)).range([0,w]);
+    const y = d3.scaleLinear().domain([0, d3.max(vd,d=>d.v)*1.18]).range([h,0]);
+
+    const bw = Math.max(1, w / vd.length * 0.8);
+    vd.forEach(d => {
+      g.append('rect').attr('x', x(d.date)-bw/2).attr('width',bw)
+        .attr('y',y(d.v)).attr('height',h-y(d.v)).attr('fill','rgba(232,165,92,0.45)').attr('rx',0.5);
+    });
+
+    // 20-day moving average
+    const ma20 = vd.map((d,i) => {
+      if (i < 19) return null;
+      const slice = vd.slice(i-19, i+1);
+      return {date: d.date, avg: d3.mean(slice, s=>s.v)};
+    }).filter(Boolean);
+
+    if (ma20.length > 1) {
+      g.append('path').datum(ma20).attr('fill','none').attr('stroke','#e8a55c').attr('stroke-width',1.5)
+        .attr('d', d3.line().x(d=>x(d.date)).y(d=>y(d.avg)).curve(d3.curveMonotoneX));
+    }
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).ticks(8).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(d=>{
+      if (d >= 1e6) return '$'+(d/1e6).toFixed(1)+'M';
+      if (d >= 1e3) return '$'+(d/1e3).toFixed(0)+'k';
+      return '$'+d.toFixed(0);
+    }).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#e8a55c').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-72)
+      .attr('text-anchor','middle').attr('fill','#e8a55c').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('VOLUME (USD)');
+  }
+
+  // ── RATIO CHART ──────────────────────────────────────────────────────────
+  function drawRatio() {
+    const rData = DATA.filter(d => d.ratio != null && d.cumUSDm > 0.5);
+    if (!rData.length) return;
+    const cont = document.getElementById('chart-ratio-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 200;
+    const mg = {top:22, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-ratio-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const y = d3.scaleLinear().domain([0, d3.max(rData,d=>d.ratio)*1.12]).range([h,0]);
+
+    g.append('line').attr('x1',0).attr('x2',w).attr('y1',y(1)).attr('y2',y(1))
+      .attr('stroke','rgba(255,255,255,0.13)').attr('stroke-width',1).attr('stroke-dasharray','4,4');
+    g.append('text').attr('x',w+5).attr('y',y(1)+4).attr('fill','#7a7670')
+      .attr('font-size','9px').attr('font-family','DM Mono,monospace').text('1×');
+
+    const defs3 = svg.append('defs');
+    const gr3 = defs3.append('linearGradient').attr('id','ratg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr3.append('stop').attr('offset','0%').attr('stop-color','#6bc98a').attr('stop-opacity',0.25);
+    gr3.append('stop').attr('offset','100%').attr('stop-color','#6bc98a').attr('stop-opacity',0.02);
+
+    g.append('path').datum(rData).attr('fill','url(#ratg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>y(d.ratio)).curve(d3.curveMonotoneX));
+    g.append('path').datum(rData).attr('fill','none').attr('stroke','#6bc98a').attr('stroke-width',2)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>y(d.ratio)).curve(d3.curveMonotoneX));
+
+    const pk = rData.reduce((a,b)=>a.ratio>b.ratio?a:b);
+    g.append('circle').attr('cx',x(pk.month)).attr('cy',y(pk.ratio)).attr('r',4.5).attr('fill','#6bc98a');
+    const pkx = x(pk.month)>w*0.7?x(pk.month)-8:x(pk.month)+8;
+    g.append('text').attr('x',pkx).attr('y',y(pk.ratio)-8)
+      .attr('text-anchor',x(pk.month)>w*0.7?'end':'start')
+      .attr('fill','#6bc98a').attr('font-size','10px').attr('font-family','DM Mono,monospace')
+      .text(`${pk.ratio.toFixed(1)}× (${pk.month})`);
+
+    const lrd = rData[rData.length-1];
+    g.append('circle').attr('cx',x(lrd.month)).attr('cy',y(lrd.ratio)).attr('r',3.5).attr('fill','#6bc98a').attr('opacity',0.7);
+    g.append('text').attr('x',x(lrd.month)-8).attr('y',y(lrd.ratio)-9)
+      .attr('text-anchor','end').attr('fill','rgba(107,201,138,0.65)').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').text(`${lrd.ratio.toFixed(1)}× atual`);
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(d=>`${d.toFixed(1)}×`).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#6bc98a').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+  }
+
+  drawMain(); drawShares(); drawVolume(); drawRatio();
+  window.addEventListener('resize', () => {
+    d3.select('#chart-main-'+TID).selectAll('*').remove();
+    d3.select('#chart-shares-'+TID).selectAll('*').remove();
+    d3.select('#chart-volume-'+TID).selectAll('*').remove();
+    d3.select('#chart-ratio-'+TID).selectAll('*').remove();
+    drawMain(); drawShares(); drawVolume(); drawRatio();
+  });
+})();
+</script>
+
+<div class="panel" id="panel-mei">
+  <div class="header">
+    <div class="header-left">
+      <h1>MEI — <em>Investimento no Projeto vs. Market Cap</em></h1>
+      <p>METEORIC RESOURCES NL · CALDEIRA PROJECT (BRASIL) · ASX: MEI · USD · AÇÕES CORRIGIDAS POR EMISSÃO</p>
+    </div>
+    <div class="kpi-row" id="kpis-mei">
+      <div class="kpi">
+        <span class="kpi-label">Preço Atual</span>
+        <span class="kpi-value gold" id="live-price-mei">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">FX Atual</span>
+        <span class="kpi-value muted" id="live-fx-mei">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Atualizado</span>
+        <span class="kpi-value live-badge">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="kpis-calc-mei" class="kpi-row" style="margin-bottom:24px;justify-content:flex-end;gap:24px;"></div>
+
+  <div class="card">
+    <div class="card-title"></div>
+    <svg id="chart-main-mei"></svg>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-line" style="background:var(--teal)"></div><span>Market Cap (USD)</span></div>
+      <div class="legend-item"><div class="leg-bar" style="background:var(--gold)"></div><span>Investimento Trimestral (USD)</span></div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--gold);opacity:.5"></div><span>Investimento Acumulado (USD)</span></div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--blue)"></div><span>Emissão de Ações</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Ações em Circulação (Milhões) — Evolução da Base Acionária</div>
+    <svg id="chart-shares-mei"></svg>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Volume Financeiro Diário (USD) · Barras Diárias + Média Móvel 20 Dias</div>
+    <svg id="chart-volume-mei"></svg>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-bar" style="background:#e8a55c;opacity:.55"></div><span>Volume Diário (USD)</span></div>
+      <div class="legend-item"><div class="leg-line" style="background:#e8a55c"></div><span>Média Móvel 20 Dias</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Razão Market Cap / Investimento Acumulado — Retorno Implícito do Capital (×)</div>
+    <svg id="chart-ratio-mei"></svg>
+  </div>
+
+  <div class="footnote"><strong>AÇÕES:</strong> Appendix 3B abr/2023 (1.332M pré-placement); Placement A$25M (+200M); Opções MEIAW jun/2023 (+25M) e dez/2023 (+49M); Placement A$30,9M ago/2024 (+230M); Emissões residuais ~206M em 2025; Placement A$42,5M jul/2025 (+304M). &nbsp;·&nbsp; <strong>FX:</strong> AUD/USD médio mensal + dados ao vivo yfinance. &nbsp;·&nbsp; <strong>INVESTIMENTO:</strong> Despesas Appendix 5B (ASX), convertidos a USD pela taxa do trimestre.</div>
+</div>
+
+<script>
+(function() {
+  const DATA      = [{"month": "abr/23", "priceLocal": 0.018, "fx": 0.6712, "shares": 1532306450, "mcapUSDm": 18.51271360632, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/23", "priceLocal": 0.0173, "fx": 0.6649, "shares": 1532306450, "mcapUSDm": 17.625768663866502, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/23", "priceLocal": 0.0167, "fx": 0.6782, "shares": 1557306450, "mcapUSDm": 17.637959414313, "cumUSDm": 3.3231800000000002, "qBarUSDm": 3.3231800000000002, "ratio": 5.307554635714285, "isLive": false}, {"month": "jul/23", "priceLocal": 0.0135, "fx": 0.668, "shares": 1557306450, "mcapUSDm": 14.0437895661, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/23", "priceLocal": 0.0106, "fx": 0.643, "shares": 1557306450, "mcapUSDm": 10.61428930191, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/23", "priceLocal": 0.0109, "fx": 0.6426, "shares": 1557306450, "mcapUSDm": 10.907903859992999, "cumUSDm": 4.30542, "qBarUSDm": 1.15668, "ratio": 2.533528403731343, "isLive": false}, {"month": "out/23", "priceLocal": 0.0167, "fx": 0.633, "shares": 1557306450, "mcapUSDm": 16.462442213595, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/23", "priceLocal": 0.0335, "fx": 0.6476, "shares": 1557306450, "mcapUSDm": 33.785140510169995, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/23", "priceLocal": 0.0503, "fx": 0.659, "shares": 1606306450, "mcapUSDm": 53.245364312665004, "cumUSDm": 6.0628, "qBarUSDm": 1.6475, "ratio": 8.782305916847827, "isLive": false}, {"month": "jan/24", "priceLocal": 0.0515, "fx": 0.6588, "shares": 1606306450, "mcapUSDm": 54.49908649689, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/24", "priceLocal": 0.0398, "fx": 0.6553, "shares": 1606306450, "mcapUSDm": 41.893982144063, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/24", "priceLocal": 0.0328, "fx": 0.6527, "shares": 1606306450, "mcapUSDm": 34.388708013211996, "cumUSDm": 7.8324, "qBarUSDm": 1.8275599999999999, "ratio": 4.3905709633333325, "isLive": false}, {"month": "abr/24", "priceLocal": 0.0355, "fx": 0.6455, "shares": 1606306450, "mcapUSDm": 36.80891387836249, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/24", "priceLocal": 0.033, "fx": 0.6612, "shares": 1606306450, "mcapUSDm": 35.04896421642, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/24", "priceLocal": 0.0273, "fx": 0.6669, "shares": 1606306450, "mcapUSDm": 29.245009562086505, "cumUSDm": 10.136880000000001, "qBarUSDm": 2.13408, "ratio": 2.885010926644737, "isLive": false}, {"month": "jul/24", "priceLocal": 0.0277, "fx": 0.659, "shares": 1606306450, "mcapUSDm": 29.321999830235, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/24", "priceLocal": 0.0272, "fx": 0.6635, "shares": 1836306450, "mcapUSDm": 33.140189764439995, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/24", "priceLocal": 0.032, "fx": 0.6753, "shares": 1836306450, "mcapUSDm": 39.68184786192, "cumUSDm": 12.76317, "qBarUSDm": 2.49861, "ratio": 3.1090902857142853, "isLive": false}, {"month": "out/24", "priceLocal": 0.0291, "fx": 0.6565, "shares": 1836306450, "mcapUSDm": 35.0810738667675, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/24", "priceLocal": 0.0265, "fx": 0.6484, "shares": 1836306450, "mcapUSDm": 31.552519207769997, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/24", "priceLocal": 0.0275, "fx": 0.6274, "shares": 1836306450, "mcapUSDm": 31.682713335074997, "cumUSDm": 14.116499999999998, "qBarUSDm": 2.2586399999999998, "ratio": 2.24437455, "isLive": false}, {"month": "jan/25", "priceLocal": 0.029, "fx": 0.6197, "shares": 1836306450, "mcapUSDm": 33.000814104885, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/25", "priceLocal": 0.0319, "fx": 0.6282, "shares": 1930306450, "mcapUSDm": 38.68253052929099, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/25", "priceLocal": 0.036, "fx": 0.6294, "shares": 2030306450, "mcapUSDm": 46.00349566667999, "cumUSDm": 16.867919999999998, "qBarUSDm": 2.7064199999999996, "ratio": 2.727277320895522, "isLive": false}, {"month": "abr/25", "priceLocal": 0.0438, "fx": 0.6349, "shares": 2130306450, "mcapUSDm": 59.24088255159899, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/25", "priceLocal": 0.058, "fx": 0.644, "shares": 2230306450, "mcapUSDm": 83.3064065204, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/25", "priceLocal": 0.078, "fx": 0.6525, "shares": 2330306450, "mcapUSDm": 118.60094677274999, "cumUSDm": 20.88, "qBarUSDm": 3.393, "ratio": 5.680121971875, "isLive": false}, {"month": "jul/25", "priceLocal": 0.102, "fx": 0.644, "shares": 2646398877, "mcapUSDm": 173.836649432376, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/25", "priceLocal": 0.115, "fx": 0.6393, "shares": 2646398877, "mcapUSDm": 194.56192223760152, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/25", "priceLocal": 0.105, "fx": 0.644, "shares": 2646398877, "mcapUSDm": 178.94949206274, "cumUSDm": 24.794, "qBarUSDm": 4.186, "ratio": 7.217451482727273, "isLive": false}, {"month": "out/25", "priceLocal": 0.096, "fx": 0.645, "shares": 2646398877, "mcapUSDm": 163.86501846384002, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/25", "priceLocal": 0.089, "fx": 0.6435, "shares": 2646398877, "mcapUSDm": 151.56323328410548, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/25", "priceLocal": 0.092, "fx": 0.631, "shares": 2646398877, "mcapUSDm": 153.628747607604, "cumUSDm": 24.2935, "qBarUSDm": null, "ratio": 6.323862251532467, "isLive": false}];
+  const ISSUANCES = [{"month": "abr/23", "label": "Placement A$25M<br>+200M ações", "shares": 200000000}, {"month": "jun/23", "label": "Exercício opções MEIAW<br>+~25M ações @ A$0.10", "shares": 25000000}, {"month": "dez/23", "label": "Exercício opções MEIAW<br>+~49M ações @ A$0.10", "shares": 49000000}, {"month": "ago/24", "label": "Placement A$30,9M<br>+~230M ações", "shares": 230000000}, {"month": "jul/25", "label": "Placement A$42,5M<br>+304M ações", "shares": 304092427}];
+  const EVENTS    = [{"month": "abr/23", "label": "Placement + Início Perfuração Caldeira", "color": "#63b3ed"}, {"month": "out/23", "label": "Recurso Inferido JORC 2.7Gt @ 2.670 ppm TREO", "color": "#e8c97a"}, {"month": "mai/24", "label": "Recurso Indicado + Scoping Study", "color": "#68d391"}, {"month": "ago/24", "label": "Placement + Recurso 3.3Gt", "color": "#f6ad55"}, {"month": "fev/25", "label": "Recurso 4.6Gt — Maior do Mundo", "color": "#68d391"}, {"month": "jul/25", "label": "Placement A$42,5M + Início PFS", "color": "#b794f4"}];
+  const BANDS     = [{"s": "abr/23", "e": "set/23", "label": "EXPLORAÇÃO INICIAL", "c": "rgba(201,168,76,0.03)"}, {"s": "out/23", "e": "jun/24", "label": "RECURSOS JORC · ESTUDOS", "c": "rgba(92,168,224,0.03)"}, {"s": "jul/24", "e": "dez/25", "label": "PFS · ESCALA · ACORDOS", "c": "rgba(107,201,138,0.03)"}];
+  const VOL_DATA  = [];
+  const LIVE_M    = "jun/26";
+  const CUR_LABEL = "AUD";
+  const TID       = "mei";
+  const BG        = "#07090f";
+
+  const monthOrder = DATA.map(d => d.month);
+
+  // Computed KPIs
+  const listed = DATA.filter(d => d.mcapUSDm != null);
+  if (listed.length) {
+    const peak   = listed.reduce((a,b) => a.mcapUSDm > b.mcapUSDm ? a : b);
+    const pkR    = DATA.filter(d => d.ratio).reduce((a,b) => a.ratio > b.ratio ? a : b, {ratio:0});
+    const lastD  = listed[listed.length - 1];
+    const totInv = Math.max(...DATA.map(d => d.cumUSDm));
+    document.getElementById('kpis-calc-'+TID).innerHTML = `
+      <div class="kpi"><span class="kpi-label">Total Investido</span><span class="kpi-value gold">USD ${totInv.toFixed(0)}M</span></div>
+      <div class="kpi"><span class="kpi-label">Market Cap Pico</span><span class="kpi-value teal">USD ${peak.mcapUSDm.toFixed(0)}M</span></div>
+      <div class="kpi"><span class="kpi-label">Pico em</span><span class="kpi-value muted">${peak.month}</span></div>
+      ${pkR.ratio ? `<div class="kpi"><span class="kpi-label">Múltiplo Pico</span><span class="kpi-value green">${pkR.ratio.toFixed(1)}×</span></div>` : ''}
+      ${lastD.ratio != null ? `<div class="kpi"><span class="kpi-label">Múltiplo Atual</span><span class="kpi-value muted">${lastD.ratio.toFixed(1)}×</span></div>` : ''}
+    `;
+  }
+
+  // ── MAIN CHART ──────────────────────────────────────────────────────────────
+  function drawMain() {
+    const cont = document.getElementById('chart-main-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 440;
+    const mg = {top:28, right:84, bottom:50, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-main-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x  = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const listedD = DATA.filter(d => d.mcapUSDm != null);
+    const yL = d3.scaleLinear().domain([0, d3.max(listedD, d => d.mcapUSDm)*1.18]).range([h,0]);
+    const yR = d3.scaleLinear().domain([0, Math.max(
+      d3.max(DATA, d => d.cumUSDm||0),
+      d3.max(DATA, d => d.qBarUSDm||0)
+    )*1.22]).range([h,0]);
+
+    // Phase bands
+    BANDS.forEach(b => {
+      const x0=x(b.s), x1=x(b.e); if(!x0||!x1) return;
+      g.append('rect').attr('x',x0-x.step()*0.4).attr('width',x1-x0+x.step()*0.8)
+        .attr('y',0).attr('height',h).attr('fill',b.c);
+      g.append('text').attr('x',(x0+x1)/2).attr('y',13).attr('text-anchor','middle')
+        .attr('fill','#8a8480').attr('font-size','9px')
+        .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.09em').text(b.label);
+    });
+
+    // Gridlines
+    yL.ticks(7).forEach(t => {
+      g.append('line').attr('x1',0).attr('x2',w).attr('y1',yL(t)).attr('y2',yL(t))
+        .attr('stroke','rgba(255,255,255,0.035)').attr('stroke-width',1);
+    });
+
+    // Quarterly bars
+    const bw = Math.max(5, x.step()*0.36);
+    DATA.filter(d=>d.qBarUSDm!=null).forEach(d => {
+      g.append('rect').attr('x',x(d.month)-bw/2).attr('width',bw)
+        .attr('y',yR(d.qBarUSDm)).attr('height',h-yR(d.qBarUSDm))
+        .attr('fill','rgba(201,168,76,0.45)').attr('rx',1);
+    });
+
+    // Cumulative dashed line
+    g.append('path').datum(DATA).attr('fill','none')
+      .attr('stroke','rgba(201,168,76,0.45)').attr('stroke-width',1.5).attr('stroke-dasharray','5,3')
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>yR(d.cumUSDm)).defined(d=>d.cumUSDm!=null).curve(d3.curveMonotoneX));
+
+    // MCap area
+    const defs = svg.append('defs');
+    const gr = defs.append('linearGradient').attr('id','mcg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr.append('stop').attr('offset','0%').attr('stop-color','#4ec9b0').attr('stop-opacity',0.2);
+    gr.append('stop').attr('offset','100%').attr('stop-color','#4ec9b0').attr('stop-opacity',0.02);
+
+    const mcapDefined = d => d.mcapUSDm != null;
+    g.append('path').datum(DATA).attr('fill','url(#mcg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>yL(d.mcapUSDm||0)).defined(mcapDefined).curve(d3.curveMonotoneX));
+    g.append('path').datum(DATA).attr('fill','none').attr('stroke','#4ec9b0').attr('stroke-width',2)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>yL(d.mcapUSDm)).defined(mcapDefined).curve(d3.curveMonotoneX));
+
+    // Project events
+    EVENTS.forEach(ev => {
+      const xp = x(ev.month); if(!xp) return;
+      const dp = DATA.find(d=>d.month===ev.month);
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke',ev.color).attr('stroke-width',1).attr('stroke-opacity',0.22).attr('stroke-dasharray','3,4');
+      if(dp && dp.mcapUSDm) g.append('circle').attr('cx',xp).attr('cy',yL(dp.mcapUSDm))
+        .attr('r',3).attr('fill',ev.color).attr('stroke',BG).attr('stroke-width',1.5);
+    });
+
+    // Issuance markers
+    ISSUANCES.forEach(iv => {
+      const xp = x(iv.month); if(!xp) return;
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke','#5ca8e0').attr('stroke-width',1).attr('stroke-opacity',0.35).attr('stroke-dasharray','1,3');
+      const ds=5;
+      g.append('polygon').attr('points',`${xp},${h+ds} ${xp+ds},${h+ds*2} ${xp},${h+ds*3} ${xp-ds},${h+ds*2}`)
+        .attr('fill','#5ca8e0').attr('opacity',0.8);
+    });
+
+    // Live dot
+    const liveD = DATA.find(d => d.month === LIVE_M);
+    if (liveD && liveD.mcapUSDm) {
+      g.append('circle').attr('cx',x(LIVE_M)).attr('cy',yL(liveD.mcapUSDm))
+        .attr('r',5).attr('fill','#6bc98a').attr('stroke',BG).attr('stroke-width',2);
+      g.append('text').attr('x',x(LIVE_M)+8).attr('y',yL(liveD.mcapUSDm)-8)
+        .attr('fill','#6bc98a').attr('font-size','9px').attr('font-family','DM Mono,monospace').text('● LIVE');
+    }
+
+    // Peak
+    if (listedD.length) {
+      const peak = listedD.reduce((a,b) => a.mcapUSDm > b.mcapUSDm ? a : b);
+      g.append('circle').attr('cx',x(peak.month)).attr('cy',yL(peak.mcapUSDm))
+        .attr('r',5).attr('fill','none').attr('stroke','#4ec9b0').attr('stroke-width',1.5).attr('stroke-dasharray','3,2');
+      const px = x(peak.month) > w*0.7 ? x(peak.month)-8 : x(peak.month)+8;
+      g.append('text').attr('x',px).attr('y',yL(peak.mcapUSDm)-9)
+        .attr('text-anchor', x(peak.month)>w*0.7?'end':'start')
+        .attr('fill','#4ec9b0').attr('font-size','10px').attr('font-family','DM Mono,monospace')
+        .text(`${fmtM(peak.mcapUSDm)} (${peak.month})`);
+    }
+
+    // Axes
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(yL).ticks(7).tickFormat(d=>fmtM(d)).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#4ec9b0').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('g').attr('transform',`translate(${w},0)`).call(
+      d3.axisRight(yR).ticks(7).tickFormat(d=>`$${d.toFixed(0)}M`).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','rgba(201,168,76,0.75)').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+
+    // Axis labels
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-68)
+      .attr('text-anchor','middle').attr('fill','#4ec9b0').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('MARKET CAP (USD)');
+    g.append('text').attr('transform','rotate(90)').attr('x',h/2).attr('y',-(w+68))
+      .attr('text-anchor','middle').attr('fill','rgba(201,168,76,0.75)').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('INVESTIMENTO (USD)');
+
+    // Hover
+    const hLine = g.append('line').attr('y1',0).attr('y2',h)
+      .attr('stroke','rgba(255,255,255,0.1)').attr('stroke-width',1).style('display','none').attr('pointer-events','none');
+
+    g.append('rect').attr('width',w).attr('height',h).attr('fill','transparent').attr('cursor','crosshair')
+      .on('mousemove', function(event) {
+        const [mx] = d3.pointer(event);
+        let ni=0, md=Infinity;
+        monthOrder.forEach((m,i)=>{ const d2=Math.abs(x(m)-mx); if(d2<md){md=d2;ni=i;} });
+        const d = DATA[ni];
+        hLine.style('display',null).attr('x1',x(d.month)).attr('x2',x(d.month));
+        const ev  = EVENTS.find(e=>e.month===d.month);
+        const iss = ISSUANCES.find(e=>e.month===d.month);
+        const evH  = ev  ? `<div class="tt-event" style="border-left:2px solid ${ev.color};color:${ev.color}">${ev.label}</div>` : '';
+        const isH  = iss ? `<div class="tt-event" style="border-left:2px solid var(--blue);color:var(--blue)">${iss.label}</div>` : '';
+        const liveH = d.isLive ? '<div class="tt-event" style="border-left:2px solid #6bc98a;color:#6bc98a">● Dado ao vivo</div>' : '';
+        showTT(event, `
+          <div class="tt-month">${d.month.toUpperCase()}</div>
+          ${evH}${isH}${liveH}
+          <div class="tt-row"><span class="l">Ações em circulação</span><span class="v">${fmtMs(d.shares)}</span></div>
+          <div class="tt-row"><span class="l">Cotação</span><span class="v">${d.priceLocal != null ? CUR_LABEL+' '+d.priceLocal.toFixed(4) : '— suspensa'}</span></div>
+          <div class="tt-row"><span class="l">${CUR_LABEL}/USD</span><span class="v">${d.fx.toFixed(4)}</span></div>
+          <div class="tt-row"><span class="l">Market Cap</span><span class="v teal">${d.mcapUSDm != null ? fmtM(d.mcapUSDm) : '—'}</span></div>
+          <hr class="tt-div">
+          <div class="tt-row"><span class="l">Invest. Acumulado</span><span class="v gold">$${d.cumUSDm.toFixed(1)}M</span></div>
+          ${d.qBarUSDm!=null?`<div class="tt-row"><span class="l">Invest. Trimestral</span><span class="v">$${d.qBarUSDm.toFixed(1)}M</span></div>`:''}
+          <hr class="tt-div">
+          <div class="tt-row"><span class="l">MCap / Acumulado</span><span class="v ${d.ratio!=null&&d.ratio>=1?'green':'red'}">${d.ratio!=null?d.ratio.toFixed(2)+'×':'—'}</span></div>
+        `);
+      })
+      .on('mousemove.move', moveTT)
+      .on('mouseleave', ()=>{ hLine.style('display','none'); hideTT(); });
+  }
+
+  // ── SHARES CHART ─────────────────────────────────────────────────────────
+  function drawShares() {
+    const cont = document.getElementById('chart-shares-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 180;
+    const mg = {top:20, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-shares-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const y = d3.scaleLinear()
+      .domain([d3.min(DATA,d=>d.shares)*0.93, d3.max(DATA,d=>d.shares)*1.07])
+      .range([h,0]);
+
+    y.ticks(4).forEach(t => {
+      g.append('line').attr('x1',0).attr('x2',w).attr('y1',y(t)).attr('y2',y(t))
+        .attr('stroke','rgba(255,255,255,0.035)').attr('stroke-width',1);
+    });
+
+    const defs2 = svg.append('defs');
+    const gr2 = defs2.append('linearGradient').attr('id','shg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr2.append('stop').attr('offset','0%').attr('stop-color','#5ca8e0').attr('stop-opacity',0.2);
+    gr2.append('stop').attr('offset','100%').attr('stop-color','#5ca8e0').attr('stop-opacity',0.02);
+
+    g.append('path').datum(DATA).attr('fill','url(#shg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>y(d.shares)).curve(d3.curveStepAfter));
+    g.append('path').datum(DATA).attr('fill','none').attr('stroke','#5ca8e0').attr('stroke-width',1.5)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>y(d.shares)).curve(d3.curveStepAfter));
+
+    ISSUANCES.forEach(iv => {
+      const xp = x(iv.month); if(!xp) return;
+      const dp = DATA.find(d=>d.month===iv.month); if(!dp) return;
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke','#5ca8e0').attr('stroke-width',1).attr('stroke-opacity',0.4).attr('stroke-dasharray','2,3');
+      g.append('circle').attr('cx',xp).attr('cy',y(dp.shares)).attr('r',4)
+        .attr('fill','#5ca8e0').attr('stroke',BG).attr('stroke-width',1.5);
+      const addedM = (iv.shares/1e6).toFixed(iv.shares>1e6?1:2);
+      const lx = xp > w*0.8 ? xp-6 : xp+6;
+      g.append('text').attr('x',lx).attr('y',y(dp.shares)-9)
+        .attr('text-anchor', xp>w*0.8?'end':'start')
+        .attr('fill','#5ca8e0').attr('font-size','9px').attr('font-family','DM Mono,monospace')
+        .text(`+${addedM}M`);
+    });
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(4).tickFormat(d=>`${(d/1e6).toFixed(0)}M`).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#5ca8e0').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-68)
+      .attr('text-anchor','middle').attr('fill','#5ca8e0').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('AÇÕES EM CIRCULAÇÃO');
+  }
+
+  // ── VOLUME CHART ─────────────────────────────────────────────────────────
+  function drawVolume() {
+    if (!VOL_DATA.length) return;
+    const cont = document.getElementById('chart-volume-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 220;
+    const mg = {top:22, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-volume-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const parseDate = d3.timeParse('%Y-%m-%d');
+    const vd = VOL_DATA.map(r => ({...r, date: parseDate(r.d)})).filter(r => r.date);
+    vd.sort((a,b) => a.date - b.date);
+
+    const x = d3.scaleTime().domain(d3.extent(vd, d=>d.date)).range([0,w]);
+    const y = d3.scaleLinear().domain([0, d3.max(vd,d=>d.v)*1.18]).range([h,0]);
+
+    const bw = Math.max(1, w / vd.length * 0.8);
+    vd.forEach(d => {
+      g.append('rect').attr('x', x(d.date)-bw/2).attr('width',bw)
+        .attr('y',y(d.v)).attr('height',h-y(d.v)).attr('fill','rgba(232,165,92,0.45)').attr('rx',0.5);
+    });
+
+    // 20-day moving average
+    const ma20 = vd.map((d,i) => {
+      if (i < 19) return null;
+      const slice = vd.slice(i-19, i+1);
+      return {date: d.date, avg: d3.mean(slice, s=>s.v)};
+    }).filter(Boolean);
+
+    if (ma20.length > 1) {
+      g.append('path').datum(ma20).attr('fill','none').attr('stroke','#e8a55c').attr('stroke-width',1.5)
+        .attr('d', d3.line().x(d=>x(d.date)).y(d=>y(d.avg)).curve(d3.curveMonotoneX));
+    }
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).ticks(8).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(d=>{
+      if (d >= 1e6) return '$'+(d/1e6).toFixed(1)+'M';
+      if (d >= 1e3) return '$'+(d/1e3).toFixed(0)+'k';
+      return '$'+d.toFixed(0);
+    }).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#e8a55c').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-72)
+      .attr('text-anchor','middle').attr('fill','#e8a55c').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('VOLUME (USD)');
+  }
+
+  // ── RATIO CHART ──────────────────────────────────────────────────────────
+  function drawRatio() {
+    const rData = DATA.filter(d => d.ratio != null && d.cumUSDm > 0.5);
+    if (!rData.length) return;
+    const cont = document.getElementById('chart-ratio-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 200;
+    const mg = {top:22, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-ratio-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const y = d3.scaleLinear().domain([0, d3.max(rData,d=>d.ratio)*1.12]).range([h,0]);
+
+    g.append('line').attr('x1',0).attr('x2',w).attr('y1',y(1)).attr('y2',y(1))
+      .attr('stroke','rgba(255,255,255,0.13)').attr('stroke-width',1).attr('stroke-dasharray','4,4');
+    g.append('text').attr('x',w+5).attr('y',y(1)+4).attr('fill','#7a7670')
+      .attr('font-size','9px').attr('font-family','DM Mono,monospace').text('1×');
+
+    const defs3 = svg.append('defs');
+    const gr3 = defs3.append('linearGradient').attr('id','ratg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr3.append('stop').attr('offset','0%').attr('stop-color','#6bc98a').attr('stop-opacity',0.25);
+    gr3.append('stop').attr('offset','100%').attr('stop-color','#6bc98a').attr('stop-opacity',0.02);
+
+    g.append('path').datum(rData).attr('fill','url(#ratg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>y(d.ratio)).curve(d3.curveMonotoneX));
+    g.append('path').datum(rData).attr('fill','none').attr('stroke','#6bc98a').attr('stroke-width',2)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>y(d.ratio)).curve(d3.curveMonotoneX));
+
+    const pk = rData.reduce((a,b)=>a.ratio>b.ratio?a:b);
+    g.append('circle').attr('cx',x(pk.month)).attr('cy',y(pk.ratio)).attr('r',4.5).attr('fill','#6bc98a');
+    const pkx = x(pk.month)>w*0.7?x(pk.month)-8:x(pk.month)+8;
+    g.append('text').attr('x',pkx).attr('y',y(pk.ratio)-8)
+      .attr('text-anchor',x(pk.month)>w*0.7?'end':'start')
+      .attr('fill','#6bc98a').attr('font-size','10px').attr('font-family','DM Mono,monospace')
+      .text(`${pk.ratio.toFixed(1)}× (${pk.month})`);
+
+    const lrd = rData[rData.length-1];
+    g.append('circle').attr('cx',x(lrd.month)).attr('cy',y(lrd.ratio)).attr('r',3.5).attr('fill','#6bc98a').attr('opacity',0.7);
+    g.append('text').attr('x',x(lrd.month)-8).attr('y',y(lrd.ratio)-9)
+      .attr('text-anchor','end').attr('fill','rgba(107,201,138,0.65)').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').text(`${lrd.ratio.toFixed(1)}× atual`);
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(d=>`${d.toFixed(1)}×`).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#6bc98a').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+  }
+
+  drawMain(); drawShares(); drawVolume(); drawRatio();
+  window.addEventListener('resize', () => {
+    d3.select('#chart-main-'+TID).selectAll('*').remove();
+    d3.select('#chart-shares-'+TID).selectAll('*').remove();
+    d3.select('#chart-volume-'+TID).selectAll('*').remove();
+    d3.select('#chart-ratio-'+TID).selectAll('*').remove();
+    drawMain(); drawShares(); drawVolume(); drawRatio();
+  });
+})();
+</script>
+
+<div class="panel" id="panel-sgq">
+  <div class="header">
+    <div class="header-left">
+      <h1>SGQ — <em>Investimento no Araxá vs. Market Cap</em></h1>
+      <p>ST. GEORGE MINING LTD. · ARAXÁ PROJECT (BRASIL) · ASX: SGQ · USD · AÇÕES CORRIGIDAS POR EMISSÃO</p>
+    </div>
+    <div class="kpi-row" id="kpis-sgq">
+      <div class="kpi">
+        <span class="kpi-label">Preço Atual</span>
+        <span class="kpi-value gold" id="live-price-sgq">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">FX Atual</span>
+        <span class="kpi-value muted" id="live-fx-sgq">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Atualizado</span>
+        <span class="kpi-value live-badge">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="kpis-calc-sgq" class="kpi-row" style="margin-bottom:24px;justify-content:flex-end;gap:24px;"></div>
+
+  <div class="card">
+    <div class="card-title"></div>
+    <svg id="chart-main-sgq"></svg>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-line" style="background:var(--teal)"></div><span>Market Cap (USD)</span></div>
+      <div class="legend-item"><div class="leg-bar" style="background:var(--gold)"></div><span>Investimento Trimestral (USD)</span></div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--gold);opacity:.5"></div><span>Investimento Acumulado (USD)</span></div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--blue)"></div><span>Emissão de Ações</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Ações em Circulação (Milhões) — Evolução da Base Acionária</div>
+    <svg id="chart-shares-sgq"></svg>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Volume Financeiro Diário (USD) · Barras Diárias + Média Móvel 20 Dias</div>
+    <svg id="chart-volume-sgq"></svg>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-bar" style="background:#e8a55c;opacity:.55"></div><span>Volume Diário (USD)</span></div>
+      <div class="legend-item"><div class="leg-line" style="background:#e8a55c"></div><span>Média Móvel 20 Dias</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Razão Market Cap / Investimento Acumulado — Retorno Implícito do Capital (×)</div>
+    <svg id="chart-ratio-sgq"></svg>
+  </div>
+
+  <div class="footnote"><strong>FX:</strong> AUD/USD médio mensal histórico + dados ao vivo yfinance. &nbsp;·&nbsp; <strong>MARKET CAP:</strong> Cotação AUD (ASX: SGQ) × AUD/USD × ações em circulação. Investimento convertido a USD pela taxa do fim de cada trimestre. &nbsp;·&nbsp; <strong>SUSPENSÃO:</strong> Trading suspenso set/2023–ago/2025 durante negociação de aquisição.</div>
+</div>
+
+<script>
+(function() {
+  const DATA      = [{"month": "jan/22", "priceLocal": 0.03, "fx": 0.717, "shares": 1062244808, "mcapUSDm": 22.848885820079996, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/22", "priceLocal": 0.038, "fx": 0.7178, "shares": 1062244808, "mcapUSDm": 28.974214280931196, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/22", "priceLocal": 0.03, "fx": 0.7427, "shares": 1062244808, "mcapUSDm": 23.667876567047998, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "abr/22", "priceLocal": 0.029, "fx": 0.739, "shares": 1062244808, "mcapUSDm": 22.764968480248, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/22", "priceLocal": 0.025, "fx": 0.7103, "shares": 1062244808, "mcapUSDm": 18.862812178060004, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/22", "priceLocal": 0.021, "fx": 0.693, "shares": 1062244808, "mcapUSDm": 15.458848690824, "cumUSDm": 0.5, "qBarUSDm": 0.5, "ratio": null, "isLive": false}, {"month": "jul/22", "priceLocal": 0.021, "fx": 0.6886, "shares": 1062244808, "mcapUSDm": 15.360697270564803, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/22", "priceLocal": 0.022, "fx": 0.6964, "shares": 1062244808, "mcapUSDm": 16.274440254406397, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/22", "priceLocal": 0.022, "fx": 0.6547, "shares": 1062244808, "mcapUSDm": 15.299936867547197, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "out/22", "priceLocal": 0.022, "fx": 0.649, "shares": 1062244808, "mcapUSDm": 15.166731368623998, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/22", "priceLocal": 0.023, "fx": 0.6641, "shares": 1062244808, "mcapUSDm": 16.2250458708344, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/22", "priceLocal": 0.023, "fx": 0.6705, "shares": 1062244808, "mcapUSDm": 16.381408306572, "cumUSDm": 1.1, "qBarUSDm": 0.6, "ratio": 14.892189369610907, "isLive": false}, {"month": "jan/23", "priceLocal": 0.028, "fx": 0.6985, "shares": 1062244808, "mcapUSDm": 20.775383954864004, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/23", "priceLocal": 0.029, "fx": 0.6893, "shares": 1062244808, "mcapUSDm": 21.2339550384776, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/23", "priceLocal": 0.029, "fx": 0.6705, "shares": 1062244808, "mcapUSDm": 20.654819169156, "cumUSDm": 1.5, "qBarUSDm": 0.4, "ratio": 13.769879446104, "isLive": false}, {"month": "abr/23", "priceLocal": 0.026, "fx": 0.6712, "shares": 1062244808, "mcapUSDm": 18.537446593369598, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/23", "priceLocal": 0.028, "fx": 0.6649, "shares": 1062244808, "mcapUSDm": 19.776024039497603, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/23", "priceLocal": 0.035, "fx": 0.6782, "shares": 1062244808, "mcapUSDm": 25.214505007496005, "cumUSDm": 2.0, "qBarUSDm": 0.5, "ratio": 12.607252503748002, "isLive": false}, {"month": "jul/23", "priceLocal": 0.036, "fx": 0.668, "shares": 1062244808, "mcapUSDm": 25.544863142784, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/23", "priceLocal": 0.031, "fx": 0.643, "shares": 1062244808, "mcapUSDm": 21.173725757864002, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/23", "priceLocal": null, "fx": 0.6426, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 2.6, "qBarUSDm": 0.6, "ratio": null, "isLive": false}, {"month": "out/23", "priceLocal": null, "fx": 0.633, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/23", "priceLocal": null, "fx": 0.6476, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/23", "priceLocal": null, "fx": 0.659, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 3.2, "qBarUSDm": 0.6, "ratio": null, "isLive": false}, {"month": "jan/24", "priceLocal": null, "fx": 0.6588, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/24", "priceLocal": null, "fx": 0.6553, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/24", "priceLocal": null, "fx": 0.6527, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 3.9, "qBarUSDm": 0.7, "ratio": null, "isLive": false}, {"month": "abr/24", "priceLocal": null, "fx": 0.6455, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/24", "priceLocal": null, "fx": 0.6612, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/24", "priceLocal": null, "fx": 0.6669, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 4.7, "qBarUSDm": 0.8, "ratio": null, "isLive": false}, {"month": "jul/24", "priceLocal": null, "fx": 0.659, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/24", "priceLocal": null, "fx": 0.6635, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/24", "priceLocal": null, "fx": 0.6753, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 5.6, "qBarUSDm": 0.9, "ratio": null, "isLive": false}, {"month": "out/24", "priceLocal": null, "fx": 0.6565, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/24", "priceLocal": null, "fx": 0.6484, "shares": 1062244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/24", "priceLocal": null, "fx": 0.6274, "shares": 1124244808, "mcapUSDm": null, "cumUSDm": 6.6, "qBarUSDm": 1.0, "ratio": null, "isLive": false}, {"month": "jan/25", "priceLocal": null, "fx": 0.6197, "shares": 1124244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/25", "priceLocal": null, "fx": 0.6282, "shares": 1124244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/25", "priceLocal": null, "fx": 0.6294, "shares": 1124244808, "mcapUSDm": null, "cumUSDm": 7.7, "qBarUSDm": 1.1, "ratio": null, "isLive": false}, {"month": "abr/25", "priceLocal": null, "fx": 0.6349, "shares": 1124244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/25", "priceLocal": null, "fx": 0.644, "shares": 1124244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/25", "priceLocal": null, "fx": 0.6525, "shares": 1124244808, "mcapUSDm": null, "cumUSDm": 8.9, "qBarUSDm": 1.2, "ratio": null, "isLive": false}, {"month": "jul/25", "priceLocal": null, "fx": 0.644, "shares": 1124244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/25", "priceLocal": null, "fx": 0.6393, "shares": 1124244808, "mcapUSDm": null, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/25", "priceLocal": 0.038, "fx": 0.644, "shares": 1124244808, "mcapUSDm": 27.512518941375998, "cumUSDm": 10.2, "qBarUSDm": 1.3, "ratio": 2.6973057785662746, "isLive": false}, {"month": "out/25", "priceLocal": 0.042, "fx": 0.645, "shares": 1124244808, "mcapUSDm": 30.455791848720004, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/25", "priceLocal": 0.045, "fx": 0.6435, "shares": 1124244808, "mcapUSDm": 32.55531902766, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/25", "priceLocal": 0.043, "fx": 0.631, "shares": 1124244808, "mcapUSDm": 30.504134375463995, "cumUSDm": 10.2, "qBarUSDm": null, "ratio": 2.9906014093592153, "isLive": false}];
+  const ISSUANCES = [{"month": "dez/24", "label": "Placement<br>+62M ações", "shares": 62000000}];
+  const EVENTS    = [{"month": "jan/22", "label": "Início Exploração Araxá", "color": "#63b3ed"}, {"month": "out/22", "label": "Descoberta Sistema REE Araxá", "color": "#e8c97a"}, {"month": "mai/23", "label": "Recurso Inferido JORC Araxá", "color": "#68d391"}, {"month": "set/23", "label": "Negociação aquisição — suspensão de trading", "color": "#e05c5c"}, {"month": "set/25", "label": "Retomada de trading", "color": "#68d391"}];
+  const BANDS     = [{"s": "jan/22", "e": "ago/23", "label": "EXPLORAÇÃO · RECURSOS", "c": "rgba(201,168,76,0.03)"}, {"s": "set/23", "e": "ago/25", "label": "SUSPENSA — AQUISIÇÃO", "c": "rgba(224,92,92,0.04)"}, {"s": "set/25", "e": "dez/25", "label": "RETOMADA", "c": "rgba(107,201,138,0.03)"}];
+  const VOL_DATA  = [];
+  const LIVE_M    = "jun/26";
+  const CUR_LABEL = "AUD";
+  const TID       = "sgq";
+  const BG        = "#07090f";
+
+  const monthOrder = DATA.map(d => d.month);
+
+  // Computed KPIs
+  const listed = DATA.filter(d => d.mcapUSDm != null);
+  if (listed.length) {
+    const peak   = listed.reduce((a,b) => a.mcapUSDm > b.mcapUSDm ? a : b);
+    const pkR    = DATA.filter(d => d.ratio).reduce((a,b) => a.ratio > b.ratio ? a : b, {ratio:0});
+    const lastD  = listed[listed.length - 1];
+    const totInv = Math.max(...DATA.map(d => d.cumUSDm));
+    document.getElementById('kpis-calc-'+TID).innerHTML = `
+      <div class="kpi"><span class="kpi-label">Total Investido</span><span class="kpi-value gold">USD ${totInv.toFixed(0)}M</span></div>
+      <div class="kpi"><span class="kpi-label">Market Cap Pico</span><span class="kpi-value teal">USD ${peak.mcapUSDm.toFixed(0)}M</span></div>
+      <div class="kpi"><span class="kpi-label">Pico em</span><span class="kpi-value muted">${peak.month}</span></div>
+      ${pkR.ratio ? `<div class="kpi"><span class="kpi-label">Múltiplo Pico</span><span class="kpi-value green">${pkR.ratio.toFixed(1)}×</span></div>` : ''}
+      ${lastD.ratio != null ? `<div class="kpi"><span class="kpi-label">Múltiplo Atual</span><span class="kpi-value muted">${lastD.ratio.toFixed(1)}×</span></div>` : ''}
+    `;
+  }
+
+  // ── MAIN CHART ──────────────────────────────────────────────────────────────
+  function drawMain() {
+    const cont = document.getElementById('chart-main-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 440;
+    const mg = {top:28, right:84, bottom:50, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-main-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x  = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const listedD = DATA.filter(d => d.mcapUSDm != null);
+    const yL = d3.scaleLinear().domain([0, d3.max(listedD, d => d.mcapUSDm)*1.18]).range([h,0]);
+    const yR = d3.scaleLinear().domain([0, Math.max(
+      d3.max(DATA, d => d.cumUSDm||0),
+      d3.max(DATA, d => d.qBarUSDm||0)
+    )*1.22]).range([h,0]);
+
+    // Phase bands
+    BANDS.forEach(b => {
+      const x0=x(b.s), x1=x(b.e); if(!x0||!x1) return;
+      g.append('rect').attr('x',x0-x.step()*0.4).attr('width',x1-x0+x.step()*0.8)
+        .attr('y',0).attr('height',h).attr('fill',b.c);
+      g.append('text').attr('x',(x0+x1)/2).attr('y',13).attr('text-anchor','middle')
+        .attr('fill','#8a8480').attr('font-size','9px')
+        .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.09em').text(b.label);
+    });
+
+    // Gridlines
+    yL.ticks(7).forEach(t => {
+      g.append('line').attr('x1',0).attr('x2',w).attr('y1',yL(t)).attr('y2',yL(t))
+        .attr('stroke','rgba(255,255,255,0.035)').attr('stroke-width',1);
+    });
+
+    // Quarterly bars
+    const bw = Math.max(5, x.step()*0.36);
+    DATA.filter(d=>d.qBarUSDm!=null).forEach(d => {
+      g.append('rect').attr('x',x(d.month)-bw/2).attr('width',bw)
+        .attr('y',yR(d.qBarUSDm)).attr('height',h-yR(d.qBarUSDm))
+        .attr('fill','rgba(201,168,76,0.45)').attr('rx',1);
+    });
+
+    // Cumulative dashed line
+    g.append('path').datum(DATA).attr('fill','none')
+      .attr('stroke','rgba(201,168,76,0.45)').attr('stroke-width',1.5).attr('stroke-dasharray','5,3')
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>yR(d.cumUSDm)).defined(d=>d.cumUSDm!=null).curve(d3.curveMonotoneX));
+
+    // MCap area
+    const defs = svg.append('defs');
+    const gr = defs.append('linearGradient').attr('id','mcg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr.append('stop').attr('offset','0%').attr('stop-color','#4ec9b0').attr('stop-opacity',0.2);
+    gr.append('stop').attr('offset','100%').attr('stop-color','#4ec9b0').attr('stop-opacity',0.02);
+
+    const mcapDefined = d => d.mcapUSDm != null;
+    g.append('path').datum(DATA).attr('fill','url(#mcg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>yL(d.mcapUSDm||0)).defined(mcapDefined).curve(d3.curveMonotoneX));
+    g.append('path').datum(DATA).attr('fill','none').attr('stroke','#4ec9b0').attr('stroke-width',2)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>yL(d.mcapUSDm)).defined(mcapDefined).curve(d3.curveMonotoneX));
+
+    // Project events
+    EVENTS.forEach(ev => {
+      const xp = x(ev.month); if(!xp) return;
+      const dp = DATA.find(d=>d.month===ev.month);
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke',ev.color).attr('stroke-width',1).attr('stroke-opacity',0.22).attr('stroke-dasharray','3,4');
+      if(dp && dp.mcapUSDm) g.append('circle').attr('cx',xp).attr('cy',yL(dp.mcapUSDm))
+        .attr('r',3).attr('fill',ev.color).attr('stroke',BG).attr('stroke-width',1.5);
+    });
+
+    // Issuance markers
+    ISSUANCES.forEach(iv => {
+      const xp = x(iv.month); if(!xp) return;
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke','#5ca8e0').attr('stroke-width',1).attr('stroke-opacity',0.35).attr('stroke-dasharray','1,3');
+      const ds=5;
+      g.append('polygon').attr('points',`${xp},${h+ds} ${xp+ds},${h+ds*2} ${xp},${h+ds*3} ${xp-ds},${h+ds*2}`)
+        .attr('fill','#5ca8e0').attr('opacity',0.8);
+    });
+
+    // Live dot
+    const liveD = DATA.find(d => d.month === LIVE_M);
+    if (liveD && liveD.mcapUSDm) {
+      g.append('circle').attr('cx',x(LIVE_M)).attr('cy',yL(liveD.mcapUSDm))
+        .attr('r',5).attr('fill','#6bc98a').attr('stroke',BG).attr('stroke-width',2);
+      g.append('text').attr('x',x(LIVE_M)+8).attr('y',yL(liveD.mcapUSDm)-8)
+        .attr('fill','#6bc98a').attr('font-size','9px').attr('font-family','DM Mono,monospace').text('● LIVE');
+    }
+
+    // Peak
+    if (listedD.length) {
+      const peak = listedD.reduce((a,b) => a.mcapUSDm > b.mcapUSDm ? a : b);
+      g.append('circle').attr('cx',x(peak.month)).attr('cy',yL(peak.mcapUSDm))
+        .attr('r',5).attr('fill','none').attr('stroke','#4ec9b0').attr('stroke-width',1.5).attr('stroke-dasharray','3,2');
+      const px = x(peak.month) > w*0.7 ? x(peak.month)-8 : x(peak.month)+8;
+      g.append('text').attr('x',px).attr('y',yL(peak.mcapUSDm)-9)
+        .attr('text-anchor', x(peak.month)>w*0.7?'end':'start')
+        .attr('fill','#4ec9b0').attr('font-size','10px').attr('font-family','DM Mono,monospace')
+        .text(`${fmtM(peak.mcapUSDm)} (${peak.month})`);
+    }
+
+    // Axes
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(yL).ticks(7).tickFormat(d=>fmtM(d)).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#4ec9b0').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('g').attr('transform',`translate(${w},0)`).call(
+      d3.axisRight(yR).ticks(7).tickFormat(d=>`$${d.toFixed(0)}M`).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','rgba(201,168,76,0.75)').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+
+    // Axis labels
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-68)
+      .attr('text-anchor','middle').attr('fill','#4ec9b0').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('MARKET CAP (USD)');
+    g.append('text').attr('transform','rotate(90)').attr('x',h/2).attr('y',-(w+68))
+      .attr('text-anchor','middle').attr('fill','rgba(201,168,76,0.75)').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('INVESTIMENTO (USD)');
+
+    // Hover
+    const hLine = g.append('line').attr('y1',0).attr('y2',h)
+      .attr('stroke','rgba(255,255,255,0.1)').attr('stroke-width',1).style('display','none').attr('pointer-events','none');
+
+    g.append('rect').attr('width',w).attr('height',h).attr('fill','transparent').attr('cursor','crosshair')
+      .on('mousemove', function(event) {
+        const [mx] = d3.pointer(event);
+        let ni=0, md=Infinity;
+        monthOrder.forEach((m,i)=>{ const d2=Math.abs(x(m)-mx); if(d2<md){md=d2;ni=i;} });
+        const d = DATA[ni];
+        hLine.style('display',null).attr('x1',x(d.month)).attr('x2',x(d.month));
+        const ev  = EVENTS.find(e=>e.month===d.month);
+        const iss = ISSUANCES.find(e=>e.month===d.month);
+        const evH  = ev  ? `<div class="tt-event" style="border-left:2px solid ${ev.color};color:${ev.color}">${ev.label}</div>` : '';
+        const isH  = iss ? `<div class="tt-event" style="border-left:2px solid var(--blue);color:var(--blue)">${iss.label}</div>` : '';
+        const liveH = d.isLive ? '<div class="tt-event" style="border-left:2px solid #6bc98a;color:#6bc98a">● Dado ao vivo</div>' : '';
+        showTT(event, `
+          <div class="tt-month">${d.month.toUpperCase()}</div>
+          ${evH}${isH}${liveH}
+          <div class="tt-row"><span class="l">Ações em circulação</span><span class="v">${fmtMs(d.shares)}</span></div>
+          <div class="tt-row"><span class="l">Cotação</span><span class="v">${d.priceLocal != null ? CUR_LABEL+' '+d.priceLocal.toFixed(4) : '— suspensa'}</span></div>
+          <div class="tt-row"><span class="l">${CUR_LABEL}/USD</span><span class="v">${d.fx.toFixed(4)}</span></div>
+          <div class="tt-row"><span class="l">Market Cap</span><span class="v teal">${d.mcapUSDm != null ? fmtM(d.mcapUSDm) : '—'}</span></div>
+          <hr class="tt-div">
+          <div class="tt-row"><span class="l">Invest. Acumulado</span><span class="v gold">$${d.cumUSDm.toFixed(1)}M</span></div>
+          ${d.qBarUSDm!=null?`<div class="tt-row"><span class="l">Invest. Trimestral</span><span class="v">$${d.qBarUSDm.toFixed(1)}M</span></div>`:''}
+          <hr class="tt-div">
+          <div class="tt-row"><span class="l">MCap / Acumulado</span><span class="v ${d.ratio!=null&&d.ratio>=1?'green':'red'}">${d.ratio!=null?d.ratio.toFixed(2)+'×':'—'}</span></div>
+        `);
+      })
+      .on('mousemove.move', moveTT)
+      .on('mouseleave', ()=>{ hLine.style('display','none'); hideTT(); });
+  }
+
+  // ── SHARES CHART ─────────────────────────────────────────────────────────
+  function drawShares() {
+    const cont = document.getElementById('chart-shares-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 180;
+    const mg = {top:20, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-shares-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const y = d3.scaleLinear()
+      .domain([d3.min(DATA,d=>d.shares)*0.93, d3.max(DATA,d=>d.shares)*1.07])
+      .range([h,0]);
+
+    y.ticks(4).forEach(t => {
+      g.append('line').attr('x1',0).attr('x2',w).attr('y1',y(t)).attr('y2',y(t))
+        .attr('stroke','rgba(255,255,255,0.035)').attr('stroke-width',1);
+    });
+
+    const defs2 = svg.append('defs');
+    const gr2 = defs2.append('linearGradient').attr('id','shg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr2.append('stop').attr('offset','0%').attr('stop-color','#5ca8e0').attr('stop-opacity',0.2);
+    gr2.append('stop').attr('offset','100%').attr('stop-color','#5ca8e0').attr('stop-opacity',0.02);
+
+    g.append('path').datum(DATA).attr('fill','url(#shg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>y(d.shares)).curve(d3.curveStepAfter));
+    g.append('path').datum(DATA).attr('fill','none').attr('stroke','#5ca8e0').attr('stroke-width',1.5)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>y(d.shares)).curve(d3.curveStepAfter));
+
+    ISSUANCES.forEach(iv => {
+      const xp = x(iv.month); if(!xp) return;
+      const dp = DATA.find(d=>d.month===iv.month); if(!dp) return;
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke','#5ca8e0').attr('stroke-width',1).attr('stroke-opacity',0.4).attr('stroke-dasharray','2,3');
+      g.append('circle').attr('cx',xp).attr('cy',y(dp.shares)).attr('r',4)
+        .attr('fill','#5ca8e0').attr('stroke',BG).attr('stroke-width',1.5);
+      const addedM = (iv.shares/1e6).toFixed(iv.shares>1e6?1:2);
+      const lx = xp > w*0.8 ? xp-6 : xp+6;
+      g.append('text').attr('x',lx).attr('y',y(dp.shares)-9)
+        .attr('text-anchor', xp>w*0.8?'end':'start')
+        .attr('fill','#5ca8e0').attr('font-size','9px').attr('font-family','DM Mono,monospace')
+        .text(`+${addedM}M`);
+    });
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(4).tickFormat(d=>`${(d/1e6).toFixed(0)}M`).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#5ca8e0').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-68)
+      .attr('text-anchor','middle').attr('fill','#5ca8e0').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('AÇÕES EM CIRCULAÇÃO');
+  }
+
+  // ── VOLUME CHART ─────────────────────────────────────────────────────────
+  function drawVolume() {
+    if (!VOL_DATA.length) return;
+    const cont = document.getElementById('chart-volume-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 220;
+    const mg = {top:22, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-volume-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const parseDate = d3.timeParse('%Y-%m-%d');
+    const vd = VOL_DATA.map(r => ({...r, date: parseDate(r.d)})).filter(r => r.date);
+    vd.sort((a,b) => a.date - b.date);
+
+    const x = d3.scaleTime().domain(d3.extent(vd, d=>d.date)).range([0,w]);
+    const y = d3.scaleLinear().domain([0, d3.max(vd,d=>d.v)*1.18]).range([h,0]);
+
+    const bw = Math.max(1, w / vd.length * 0.8);
+    vd.forEach(d => {
+      g.append('rect').attr('x', x(d.date)-bw/2).attr('width',bw)
+        .attr('y',y(d.v)).attr('height',h-y(d.v)).attr('fill','rgba(232,165,92,0.45)').attr('rx',0.5);
+    });
+
+    // 20-day moving average
+    const ma20 = vd.map((d,i) => {
+      if (i < 19) return null;
+      const slice = vd.slice(i-19, i+1);
+      return {date: d.date, avg: d3.mean(slice, s=>s.v)};
+    }).filter(Boolean);
+
+    if (ma20.length > 1) {
+      g.append('path').datum(ma20).attr('fill','none').attr('stroke','#e8a55c').attr('stroke-width',1.5)
+        .attr('d', d3.line().x(d=>x(d.date)).y(d=>y(d.avg)).curve(d3.curveMonotoneX));
+    }
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).ticks(8).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(d=>{
+      if (d >= 1e6) return '$'+(d/1e6).toFixed(1)+'M';
+      if (d >= 1e3) return '$'+(d/1e3).toFixed(0)+'k';
+      return '$'+d.toFixed(0);
+    }).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#e8a55c').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-72)
+      .attr('text-anchor','middle').attr('fill','#e8a55c').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('VOLUME (USD)');
+  }
+
+  // ── RATIO CHART ──────────────────────────────────────────────────────────
+  function drawRatio() {
+    const rData = DATA.filter(d => d.ratio != null && d.cumUSDm > 0.5);
+    if (!rData.length) return;
+    const cont = document.getElementById('chart-ratio-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 200;
+    const mg = {top:22, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-ratio-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const y = d3.scaleLinear().domain([0, d3.max(rData,d=>d.ratio)*1.12]).range([h,0]);
+
+    g.append('line').attr('x1',0).attr('x2',w).attr('y1',y(1)).attr('y2',y(1))
+      .attr('stroke','rgba(255,255,255,0.13)').attr('stroke-width',1).attr('stroke-dasharray','4,4');
+    g.append('text').attr('x',w+5).attr('y',y(1)+4).attr('fill','#7a7670')
+      .attr('font-size','9px').attr('font-family','DM Mono,monospace').text('1×');
+
+    const defs3 = svg.append('defs');
+    const gr3 = defs3.append('linearGradient').attr('id','ratg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr3.append('stop').attr('offset','0%').attr('stop-color','#6bc98a').attr('stop-opacity',0.25);
+    gr3.append('stop').attr('offset','100%').attr('stop-color','#6bc98a').attr('stop-opacity',0.02);
+
+    g.append('path').datum(rData).attr('fill','url(#ratg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>y(d.ratio)).curve(d3.curveMonotoneX));
+    g.append('path').datum(rData).attr('fill','none').attr('stroke','#6bc98a').attr('stroke-width',2)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>y(d.ratio)).curve(d3.curveMonotoneX));
+
+    const pk = rData.reduce((a,b)=>a.ratio>b.ratio?a:b);
+    g.append('circle').attr('cx',x(pk.month)).attr('cy',y(pk.ratio)).attr('r',4.5).attr('fill','#6bc98a');
+    const pkx = x(pk.month)>w*0.7?x(pk.month)-8:x(pk.month)+8;
+    g.append('text').attr('x',pkx).attr('y',y(pk.ratio)-8)
+      .attr('text-anchor',x(pk.month)>w*0.7?'end':'start')
+      .attr('fill','#6bc98a').attr('font-size','10px').attr('font-family','DM Mono,monospace')
+      .text(`${pk.ratio.toFixed(1)}× (${pk.month})`);
+
+    const lrd = rData[rData.length-1];
+    g.append('circle').attr('cx',x(lrd.month)).attr('cy',y(lrd.ratio)).attr('r',3.5).attr('fill','#6bc98a').attr('opacity',0.7);
+    g.append('text').attr('x',x(lrd.month)-8).attr('y',y(lrd.ratio)-9)
+      .attr('text-anchor','end').attr('fill','rgba(107,201,138,0.65)').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').text(`${lrd.ratio.toFixed(1)}× atual`);
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(d=>`${d.toFixed(1)}×`).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#6bc98a').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+  }
+
+  drawMain(); drawShares(); drawVolume(); drawRatio();
+  window.addEventListener('resize', () => {
+    d3.select('#chart-main-'+TID).selectAll('*').remove();
+    d3.select('#chart-shares-'+TID).selectAll('*').remove();
+    d3.select('#chart-volume-'+TID).selectAll('*').remove();
+    d3.select('#chart-ratio-'+TID).selectAll('*').remove();
+    drawMain(); drawShares(); drawVolume(); drawRatio();
+  });
+})();
+</script>
+
+<div class="panel" id="panel-vmm">
+  <div class="header">
+    <div class="header-left">
+      <h1>VMM — <em>Investimento no Colossus vs. Market Cap</em></h1>
+      <p>VIRIDIS MINING AND MINERALS LTD. · COLOSSUS PROJECT (BRASIL) · ASX: VMM · USD · AÇÕES CORRIGIDAS POR EMISSÃO</p>
+    </div>
+    <div class="kpi-row" id="kpis-vmm">
+      <div class="kpi">
+        <span class="kpi-label">Preço Atual</span>
+        <span class="kpi-value gold" id="live-price-vmm">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">FX Atual</span>
+        <span class="kpi-value muted" id="live-fx-vmm">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Atualizado</span>
+        <span class="kpi-value live-badge">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="kpis-calc-vmm" class="kpi-row" style="margin-bottom:24px;justify-content:flex-end;gap:24px;"></div>
+
+  <div class="card">
+    <div class="card-title"></div>
+    <svg id="chart-main-vmm"></svg>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-line" style="background:var(--teal)"></div><span>Market Cap (USD)</span></div>
+      <div class="legend-item"><div class="leg-bar" style="background:var(--gold)"></div><span>Investimento Trimestral (USD)</span></div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--gold);opacity:.5"></div><span>Investimento Acumulado (USD)</span></div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--blue)"></div><span>Emissão de Ações</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Ações em Circulação (Milhões) — Evolução da Base Acionária</div>
+    <svg id="chart-shares-vmm"></svg>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Volume Financeiro Diário (USD) · Barras Diárias + Média Móvel 20 Dias</div>
+    <svg id="chart-volume-vmm"></svg>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-bar" style="background:#e8a55c;opacity:.55"></div><span>Volume Diário (USD)</span></div>
+      <div class="legend-item"><div class="leg-line" style="background:#e8a55c"></div><span>Média Móvel 20 Dias</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Razão Market Cap / Investimento Acumulado — Retorno Implícito do Capital (×)</div>
+    <svg id="chart-ratio-vmm"></svg>
+  </div>
+
+  <div class="footnote"><strong>FX:</strong> AUD/USD médio mensal histórico + dados ao vivo yfinance. &nbsp;·&nbsp; <strong>MARKET CAP:</strong> Cotação AUD (ASX: VMM) × AUD/USD × ações em circulação. Investimento convertido a USD pela taxa do fim de cada trimestre.</div>
+</div>
+
+<script>
+(function() {
+  const DATA      = [{"month": "jan/22", "priceLocal": 0.038, "fx": 0.717, "shares": 453350000, "mcapUSDm": 12.3519741, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/22", "priceLocal": 0.042, "fx": 0.7178, "shares": 453350000, "mcapUSDm": 13.66741446, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/22", "priceLocal": 0.044, "fx": 0.7427, "shares": 453350000, "mcapUSDm": 14.814933980000001, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "abr/22", "priceLocal": 0.036, "fx": 0.739, "shares": 453350000, "mcapUSDm": 12.060923399999998, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/22", "priceLocal": 0.031, "fx": 0.7103, "shares": 453350000, "mcapUSDm": 9.982449655000002, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/22", "priceLocal": 0.027, "fx": 0.693, "shares": 453350000, "mcapUSDm": 8.482631849999999, "cumUSDm": 0.8, "qBarUSDm": 0.8, "ratio": 10.603289812499998, "isLive": false}, {"month": "jul/22", "priceLocal": 0.027, "fx": 0.6886, "shares": 453350000, "mcapUSDm": 8.428773869999999, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/22", "priceLocal": 0.029, "fx": 0.6964, "shares": 453350000, "mcapUSDm": 9.15567526, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/22", "priceLocal": 0.025, "fx": 0.6547, "shares": 453350000, "mcapUSDm": 7.420206124999999, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "out/22", "priceLocal": 0.026, "fx": 0.649, "shares": 453350000, "mcapUSDm": 7.6498279, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/22", "priceLocal": 0.028, "fx": 0.6641, "shares": 453350000, "mcapUSDm": 8.42995258, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/22", "priceLocal": 0.03, "fx": 0.6705, "shares": 453350000, "mcapUSDm": 9.11913525, "cumUSDm": 1.7, "qBarUSDm": 0.9, "ratio": 5.364197205882353, "isLive": false}, {"month": "jan/23", "priceLocal": 0.036, "fx": 0.6985, "shares": 453350000, "mcapUSDm": 11.3999391, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/23", "priceLocal": 0.039, "fx": 0.6893, "shares": 453350000, "mcapUSDm": 12.187272045, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/23", "priceLocal": 0.041, "fx": 0.6705, "shares": 453350000, "mcapUSDm": 12.462818174999999, "cumUSDm": 2.3, "qBarUSDm": 0.6, "ratio": 5.4186165978260865, "isLive": false}, {"month": "abr/23", "priceLocal": 0.039, "fx": 0.6712, "shares": 453350000, "mcapUSDm": 11.86725228, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/23", "priceLocal": 0.04, "fx": 0.6649, "shares": 453350000, "mcapUSDm": 12.0572966, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/23", "priceLocal": 0.049, "fx": 0.6782, "shares": 453350000, "mcapUSDm": 15.06563653, "cumUSDm": 3.0, "qBarUSDm": 0.7, "ratio": 5.021878843333334, "isLive": false}, {"month": "jul/23", "priceLocal": 0.051, "fx": 0.668, "shares": 453350000, "mcapUSDm": 15.4447278, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/23", "priceLocal": 0.047, "fx": 0.643, "shares": 453350000, "mcapUSDm": 13.70069035, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/23", "priceLocal": 0.043, "fx": 0.6426, "shares": 453350000, "mcapUSDm": 12.52687653, "cumUSDm": 3.8, "qBarUSDm": 0.8, "ratio": 3.296546455263158, "isLive": false}, {"month": "out/23", "priceLocal": 0.042, "fx": 0.633, "shares": 453350000, "mcapUSDm": 12.0527631, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/23", "priceLocal": 0.044, "fx": 0.6476, "shares": 453350000, "mcapUSDm": 12.917936239999998, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/23", "priceLocal": 0.048, "fx": 0.659, "shares": 453350000, "mcapUSDm": 14.340367200000001, "cumUSDm": 4.7, "qBarUSDm": 0.9, "ratio": 3.051141957446809, "isLive": false}, {"month": "jan/24", "priceLocal": 0.054, "fx": 0.6588, "shares": 453350000, "mcapUSDm": 16.12801692, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/24", "priceLocal": 0.052, "fx": 0.6553, "shares": 453350000, "mcapUSDm": 15.448173259999999, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/24", "priceLocal": 0.05, "fx": 0.6527, "shares": 453350000, "mcapUSDm": 14.795077249999999, "cumUSDm": 5.8, "qBarUSDm": 1.1, "ratio": 2.5508753879310344, "isLive": false}, {"month": "abr/24", "priceLocal": 0.052, "fx": 0.6455, "shares": 453350000, "mcapUSDm": 15.217146099999999, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/24", "priceLocal": 0.056, "fx": 0.6612, "shares": 453350000, "mcapUSDm": 16.78628112, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/24", "priceLocal": 0.059, "fx": 0.6669, "shares": 453350000, "mcapUSDm": 17.838007785, "cumUSDm": 7.0, "qBarUSDm": 1.2, "ratio": 2.5482868264285714, "isLive": false}, {"month": "jul/24", "priceLocal": 0.056, "fx": 0.659, "shares": 453350000, "mcapUSDm": 16.7304284, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/24", "priceLocal": 0.055, "fx": 0.6635, "shares": 453350000, "mcapUSDm": 16.543874875, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/24", "priceLocal": 0.059, "fx": 0.6753, "shares": 453350000, "mcapUSDm": 18.062688045, "cumUSDm": 8.4, "qBarUSDm": 1.4, "ratio": 2.150320005357143, "isLive": false}, {"month": "out/24", "priceLocal": 0.054, "fx": 0.6565, "shares": 478350000, "mcapUSDm": 16.957985849999996, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/24", "priceLocal": 0.051, "fx": 0.6484, "shares": 478350000, "mcapUSDm": 15.818269139999998, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/24", "priceLocal": 0.054, "fx": 0.6274, "shares": 478350000, "mcapUSDm": 16.20630666, "cumUSDm": 10.0, "qBarUSDm": 1.6, "ratio": 1.6206306659999998, "isLive": false}, {"month": "jan/25", "priceLocal": 0.061, "fx": 0.6197, "shares": 478350000, "mcapUSDm": 18.082443195, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "fev/25", "priceLocal": 0.065, "fx": 0.6282, "shares": 478350000, "mcapUSDm": 19.53246555, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mar/25", "priceLocal": 0.062, "fx": 0.6294, "shares": 478350000, "mcapUSDm": 18.66655638, "cumUSDm": 11.8, "qBarUSDm": 1.8, "ratio": 1.5819115576271185, "isLive": false}, {"month": "abr/25", "priceLocal": 0.073, "fx": 0.6349, "shares": 478350000, "mcapUSDm": 22.170422295, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "mai/25", "priceLocal": 0.085, "fx": 0.644, "shares": 478350000, "mcapUSDm": 26.184879, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "jun/25", "priceLocal": 0.105, "fx": 0.6525, "shares": 478350000, "mcapUSDm": 32.772954375, "cumUSDm": 13.8, "qBarUSDm": 2.0, "ratio": 2.3748517663043476, "isLive": false}, {"month": "jul/25", "priceLocal": 0.135, "fx": 0.644, "shares": 503350000, "mcapUSDm": 43.761249, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "ago/25", "priceLocal": 0.148, "fx": 0.6393, "shares": 503350000, "mcapUSDm": 47.62516494, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "set/25", "priceLocal": 0.135, "fx": 0.644, "shares": 503350000, "mcapUSDm": 43.761249, "cumUSDm": 16.0, "qBarUSDm": 2.2, "ratio": 2.7350780625, "isLive": false}, {"month": "out/25", "priceLocal": 0.12, "fx": 0.645, "shares": 503350000, "mcapUSDm": 38.95929, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "nov/25", "priceLocal": 0.11, "fx": 0.6435, "shares": 503350000, "mcapUSDm": 35.62962975, "cumUSDm": 0.0, "qBarUSDm": null, "ratio": null, "isLive": false}, {"month": "dez/25", "priceLocal": 0.12, "fx": 0.631, "shares": 503350000, "mcapUSDm": 38.113662, "cumUSDm": 16.0, "qBarUSDm": null, "ratio": 2.382103875, "isLive": false}];
+  const ISSUANCES = [{"month": "out/24", "label": "Placement<br>+25M ações @ AUD 0,056", "shares": 25000000}, {"month": "jul/25", "label": "Placement<br>+25M ações", "shares": 25000000}];
+  const EVENTS    = [{"month": "mar/22", "label": "Aquisição Colossus Project", "color": "#63b3ed"}, {"month": "set/22", "label": "Início Perfuração Colossus", "color": "#63b3ed"}, {"month": "mai/23", "label": "Recurso Inferido Inicial 2.16Gt", "color": "#e8c97a"}, {"month": "fev/24", "label": "Recurso Atualizado 3.46Gt", "color": "#68d391"}, {"month": "set/24", "label": "Recurso 4.86Gt + Início Scoping Study", "color": "#f6ad55"}, {"month": "abr/25", "label": "Scoping Study Positivo", "color": "#68d391"}, {"month": "set/25", "label": "Início PFS", "color": "#b794f4"}];
+  const BANDS     = [{"s": "jan/22", "e": "dez/22", "label": "AQUISIÇÃO · EXPLORAÇÃO", "c": "rgba(201,168,76,0.03)"}, {"s": "jan/23", "e": "dez/23", "label": "RECURSOS INICIAIS", "c": "rgba(92,168,224,0.03)"}, {"s": "jan/24", "e": "dez/25", "label": "PFS · ESTUDOS AVANÇADOS", "c": "rgba(107,201,138,0.03)"}];
+  const VOL_DATA  = [];
+  const LIVE_M    = "jun/26";
+  const CUR_LABEL = "AUD";
+  const TID       = "vmm";
+  const BG        = "#07090f";
+
+  const monthOrder = DATA.map(d => d.month);
+
+  // Computed KPIs
+  const listed = DATA.filter(d => d.mcapUSDm != null);
+  if (listed.length) {
+    const peak   = listed.reduce((a,b) => a.mcapUSDm > b.mcapUSDm ? a : b);
+    const pkR    = DATA.filter(d => d.ratio).reduce((a,b) => a.ratio > b.ratio ? a : b, {ratio:0});
+    const lastD  = listed[listed.length - 1];
+    const totInv = Math.max(...DATA.map(d => d.cumUSDm));
+    document.getElementById('kpis-calc-'+TID).innerHTML = `
+      <div class="kpi"><span class="kpi-label">Total Investido</span><span class="kpi-value gold">USD ${totInv.toFixed(0)}M</span></div>
+      <div class="kpi"><span class="kpi-label">Market Cap Pico</span><span class="kpi-value teal">USD ${peak.mcapUSDm.toFixed(0)}M</span></div>
+      <div class="kpi"><span class="kpi-label">Pico em</span><span class="kpi-value muted">${peak.month}</span></div>
+      ${pkR.ratio ? `<div class="kpi"><span class="kpi-label">Múltiplo Pico</span><span class="kpi-value green">${pkR.ratio.toFixed(1)}×</span></div>` : ''}
+      ${lastD.ratio != null ? `<div class="kpi"><span class="kpi-label">Múltiplo Atual</span><span class="kpi-value muted">${lastD.ratio.toFixed(1)}×</span></div>` : ''}
+    `;
+  }
+
+  // ── MAIN CHART ──────────────────────────────────────────────────────────────
+  function drawMain() {
+    const cont = document.getElementById('chart-main-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 440;
+    const mg = {top:28, right:84, bottom:50, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-main-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x  = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const listedD = DATA.filter(d => d.mcapUSDm != null);
+    const yL = d3.scaleLinear().domain([0, d3.max(listedD, d => d.mcapUSDm)*1.18]).range([h,0]);
+    const yR = d3.scaleLinear().domain([0, Math.max(
+      d3.max(DATA, d => d.cumUSDm||0),
+      d3.max(DATA, d => d.qBarUSDm||0)
+    )*1.22]).range([h,0]);
+
+    // Phase bands
+    BANDS.forEach(b => {
+      const x0=x(b.s), x1=x(b.e); if(!x0||!x1) return;
+      g.append('rect').attr('x',x0-x.step()*0.4).attr('width',x1-x0+x.step()*0.8)
+        .attr('y',0).attr('height',h).attr('fill',b.c);
+      g.append('text').attr('x',(x0+x1)/2).attr('y',13).attr('text-anchor','middle')
+        .attr('fill','#8a8480').attr('font-size','9px')
+        .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.09em').text(b.label);
+    });
+
+    // Gridlines
+    yL.ticks(7).forEach(t => {
+      g.append('line').attr('x1',0).attr('x2',w).attr('y1',yL(t)).attr('y2',yL(t))
+        .attr('stroke','rgba(255,255,255,0.035)').attr('stroke-width',1);
+    });
+
+    // Quarterly bars
+    const bw = Math.max(5, x.step()*0.36);
+    DATA.filter(d=>d.qBarUSDm!=null).forEach(d => {
+      g.append('rect').attr('x',x(d.month)-bw/2).attr('width',bw)
+        .attr('y',yR(d.qBarUSDm)).attr('height',h-yR(d.qBarUSDm))
+        .attr('fill','rgba(201,168,76,0.45)').attr('rx',1);
+    });
+
+    // Cumulative dashed line
+    g.append('path').datum(DATA).attr('fill','none')
+      .attr('stroke','rgba(201,168,76,0.45)').attr('stroke-width',1.5).attr('stroke-dasharray','5,3')
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>yR(d.cumUSDm)).defined(d=>d.cumUSDm!=null).curve(d3.curveMonotoneX));
+
+    // MCap area
+    const defs = svg.append('defs');
+    const gr = defs.append('linearGradient').attr('id','mcg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr.append('stop').attr('offset','0%').attr('stop-color','#4ec9b0').attr('stop-opacity',0.2);
+    gr.append('stop').attr('offset','100%').attr('stop-color','#4ec9b0').attr('stop-opacity',0.02);
+
+    const mcapDefined = d => d.mcapUSDm != null;
+    g.append('path').datum(DATA).attr('fill','url(#mcg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>yL(d.mcapUSDm||0)).defined(mcapDefined).curve(d3.curveMonotoneX));
+    g.append('path').datum(DATA).attr('fill','none').attr('stroke','#4ec9b0').attr('stroke-width',2)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>yL(d.mcapUSDm)).defined(mcapDefined).curve(d3.curveMonotoneX));
+
+    // Project events
+    EVENTS.forEach(ev => {
+      const xp = x(ev.month); if(!xp) return;
+      const dp = DATA.find(d=>d.month===ev.month);
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke',ev.color).attr('stroke-width',1).attr('stroke-opacity',0.22).attr('stroke-dasharray','3,4');
+      if(dp && dp.mcapUSDm) g.append('circle').attr('cx',xp).attr('cy',yL(dp.mcapUSDm))
+        .attr('r',3).attr('fill',ev.color).attr('stroke',BG).attr('stroke-width',1.5);
+    });
+
+    // Issuance markers
+    ISSUANCES.forEach(iv => {
+      const xp = x(iv.month); if(!xp) return;
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke','#5ca8e0').attr('stroke-width',1).attr('stroke-opacity',0.35).attr('stroke-dasharray','1,3');
+      const ds=5;
+      g.append('polygon').attr('points',`${xp},${h+ds} ${xp+ds},${h+ds*2} ${xp},${h+ds*3} ${xp-ds},${h+ds*2}`)
+        .attr('fill','#5ca8e0').attr('opacity',0.8);
+    });
+
+    // Live dot
+    const liveD = DATA.find(d => d.month === LIVE_M);
+    if (liveD && liveD.mcapUSDm) {
+      g.append('circle').attr('cx',x(LIVE_M)).attr('cy',yL(liveD.mcapUSDm))
+        .attr('r',5).attr('fill','#6bc98a').attr('stroke',BG).attr('stroke-width',2);
+      g.append('text').attr('x',x(LIVE_M)+8).attr('y',yL(liveD.mcapUSDm)-8)
+        .attr('fill','#6bc98a').attr('font-size','9px').attr('font-family','DM Mono,monospace').text('● LIVE');
+    }
+
+    // Peak
+    if (listedD.length) {
+      const peak = listedD.reduce((a,b) => a.mcapUSDm > b.mcapUSDm ? a : b);
+      g.append('circle').attr('cx',x(peak.month)).attr('cy',yL(peak.mcapUSDm))
+        .attr('r',5).attr('fill','none').attr('stroke','#4ec9b0').attr('stroke-width',1.5).attr('stroke-dasharray','3,2');
+      const px = x(peak.month) > w*0.7 ? x(peak.month)-8 : x(peak.month)+8;
+      g.append('text').attr('x',px).attr('y',yL(peak.mcapUSDm)-9)
+        .attr('text-anchor', x(peak.month)>w*0.7?'end':'start')
+        .attr('fill','#4ec9b0').attr('font-size','10px').attr('font-family','DM Mono,monospace')
+        .text(`${fmtM(peak.mcapUSDm)} (${peak.month})`);
+    }
+
+    // Axes
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(yL).ticks(7).tickFormat(d=>fmtM(d)).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#4ec9b0').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('g').attr('transform',`translate(${w},0)`).call(
+      d3.axisRight(yR).ticks(7).tickFormat(d=>`$${d.toFixed(0)}M`).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','rgba(201,168,76,0.75)').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+
+    // Axis labels
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-68)
+      .attr('text-anchor','middle').attr('fill','#4ec9b0').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('MARKET CAP (USD)');
+    g.append('text').attr('transform','rotate(90)').attr('x',h/2).attr('y',-(w+68))
+      .attr('text-anchor','middle').attr('fill','rgba(201,168,76,0.75)').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('INVESTIMENTO (USD)');
+
+    // Hover
+    const hLine = g.append('line').attr('y1',0).attr('y2',h)
+      .attr('stroke','rgba(255,255,255,0.1)').attr('stroke-width',1).style('display','none').attr('pointer-events','none');
+
+    g.append('rect').attr('width',w).attr('height',h).attr('fill','transparent').attr('cursor','crosshair')
+      .on('mousemove', function(event) {
+        const [mx] = d3.pointer(event);
+        let ni=0, md=Infinity;
+        monthOrder.forEach((m,i)=>{ const d2=Math.abs(x(m)-mx); if(d2<md){md=d2;ni=i;} });
+        const d = DATA[ni];
+        hLine.style('display',null).attr('x1',x(d.month)).attr('x2',x(d.month));
+        const ev  = EVENTS.find(e=>e.month===d.month);
+        const iss = ISSUANCES.find(e=>e.month===d.month);
+        const evH  = ev  ? `<div class="tt-event" style="border-left:2px solid ${ev.color};color:${ev.color}">${ev.label}</div>` : '';
+        const isH  = iss ? `<div class="tt-event" style="border-left:2px solid var(--blue);color:var(--blue)">${iss.label}</div>` : '';
+        const liveH = d.isLive ? '<div class="tt-event" style="border-left:2px solid #6bc98a;color:#6bc98a">● Dado ao vivo</div>' : '';
+        showTT(event, `
+          <div class="tt-month">${d.month.toUpperCase()}</div>
+          ${evH}${isH}${liveH}
+          <div class="tt-row"><span class="l">Ações em circulação</span><span class="v">${fmtMs(d.shares)}</span></div>
+          <div class="tt-row"><span class="l">Cotação</span><span class="v">${d.priceLocal != null ? CUR_LABEL+' '+d.priceLocal.toFixed(4) : '— suspensa'}</span></div>
+          <div class="tt-row"><span class="l">${CUR_LABEL}/USD</span><span class="v">${d.fx.toFixed(4)}</span></div>
+          <div class="tt-row"><span class="l">Market Cap</span><span class="v teal">${d.mcapUSDm != null ? fmtM(d.mcapUSDm) : '—'}</span></div>
+          <hr class="tt-div">
+          <div class="tt-row"><span class="l">Invest. Acumulado</span><span class="v gold">$${d.cumUSDm.toFixed(1)}M</span></div>
+          ${d.qBarUSDm!=null?`<div class="tt-row"><span class="l">Invest. Trimestral</span><span class="v">$${d.qBarUSDm.toFixed(1)}M</span></div>`:''}
+          <hr class="tt-div">
+          <div class="tt-row"><span class="l">MCap / Acumulado</span><span class="v ${d.ratio!=null&&d.ratio>=1?'green':'red'}">${d.ratio!=null?d.ratio.toFixed(2)+'×':'—'}</span></div>
+        `);
+      })
+      .on('mousemove.move', moveTT)
+      .on('mouseleave', ()=>{ hLine.style('display','none'); hideTT(); });
+  }
+
+  // ── SHARES CHART ─────────────────────────────────────────────────────────
+  function drawShares() {
+    const cont = document.getElementById('chart-shares-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 180;
+    const mg = {top:20, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-shares-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const y = d3.scaleLinear()
+      .domain([d3.min(DATA,d=>d.shares)*0.93, d3.max(DATA,d=>d.shares)*1.07])
+      .range([h,0]);
+
+    y.ticks(4).forEach(t => {
+      g.append('line').attr('x1',0).attr('x2',w).attr('y1',y(t)).attr('y2',y(t))
+        .attr('stroke','rgba(255,255,255,0.035)').attr('stroke-width',1);
+    });
+
+    const defs2 = svg.append('defs');
+    const gr2 = defs2.append('linearGradient').attr('id','shg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr2.append('stop').attr('offset','0%').attr('stop-color','#5ca8e0').attr('stop-opacity',0.2);
+    gr2.append('stop').attr('offset','100%').attr('stop-color','#5ca8e0').attr('stop-opacity',0.02);
+
+    g.append('path').datum(DATA).attr('fill','url(#shg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>y(d.shares)).curve(d3.curveStepAfter));
+    g.append('path').datum(DATA).attr('fill','none').attr('stroke','#5ca8e0').attr('stroke-width',1.5)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>y(d.shares)).curve(d3.curveStepAfter));
+
+    ISSUANCES.forEach(iv => {
+      const xp = x(iv.month); if(!xp) return;
+      const dp = DATA.find(d=>d.month===iv.month); if(!dp) return;
+      g.append('line').attr('x1',xp).attr('x2',xp).attr('y1',0).attr('y2',h)
+        .attr('stroke','#5ca8e0').attr('stroke-width',1).attr('stroke-opacity',0.4).attr('stroke-dasharray','2,3');
+      g.append('circle').attr('cx',xp).attr('cy',y(dp.shares)).attr('r',4)
+        .attr('fill','#5ca8e0').attr('stroke',BG).attr('stroke-width',1.5);
+      const addedM = (iv.shares/1e6).toFixed(iv.shares>1e6?1:2);
+      const lx = xp > w*0.8 ? xp-6 : xp+6;
+      g.append('text').attr('x',lx).attr('y',y(dp.shares)-9)
+        .attr('text-anchor', xp>w*0.8?'end':'start')
+        .attr('fill','#5ca8e0').attr('font-size','9px').attr('font-family','DM Mono,monospace')
+        .text(`+${addedM}M`);
+    });
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(4).tickFormat(d=>`${(d/1e6).toFixed(0)}M`).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#5ca8e0').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-68)
+      .attr('text-anchor','middle').attr('fill','#5ca8e0').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('AÇÕES EM CIRCULAÇÃO');
+  }
+
+  // ── VOLUME CHART ─────────────────────────────────────────────────────────
+  function drawVolume() {
+    if (!VOL_DATA.length) return;
+    const cont = document.getElementById('chart-volume-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 220;
+    const mg = {top:22, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-volume-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const parseDate = d3.timeParse('%Y-%m-%d');
+    const vd = VOL_DATA.map(r => ({...r, date: parseDate(r.d)})).filter(r => r.date);
+    vd.sort((a,b) => a.date - b.date);
+
+    const x = d3.scaleTime().domain(d3.extent(vd, d=>d.date)).range([0,w]);
+    const y = d3.scaleLinear().domain([0, d3.max(vd,d=>d.v)*1.18]).range([h,0]);
+
+    const bw = Math.max(1, w / vd.length * 0.8);
+    vd.forEach(d => {
+      g.append('rect').attr('x', x(d.date)-bw/2).attr('width',bw)
+        .attr('y',y(d.v)).attr('height',h-y(d.v)).attr('fill','rgba(232,165,92,0.45)').attr('rx',0.5);
+    });
+
+    // 20-day moving average
+    const ma20 = vd.map((d,i) => {
+      if (i < 19) return null;
+      const slice = vd.slice(i-19, i+1);
+      return {date: d.date, avg: d3.mean(slice, s=>s.v)};
+    }).filter(Boolean);
+
+    if (ma20.length > 1) {
+      g.append('path').datum(ma20).attr('fill','none').attr('stroke','#e8a55c').attr('stroke-width',1.5)
+        .attr('d', d3.line().x(d=>x(d.date)).y(d=>y(d.avg)).curve(d3.curveMonotoneX));
+    }
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).ticks(8).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(d=>{
+      if (d >= 1e6) return '$'+(d/1e6).toFixed(1)+'M';
+      if (d >= 1e3) return '$'+(d/1e3).toFixed(0)+'k';
+      return '$'+d.toFixed(0);
+    }).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#e8a55c').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+    g.append('text').attr('transform','rotate(-90)').attr('x',-h/2).attr('y',-72)
+      .attr('text-anchor','middle').attr('fill','#e8a55c').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').attr('letter-spacing','0.1em').text('VOLUME (USD)');
+  }
+
+  // ── RATIO CHART ──────────────────────────────────────────────────────────
+  function drawRatio() {
+    const rData = DATA.filter(d => d.ratio != null && d.cumUSDm > 0.5);
+    if (!rData.length) return;
+    const cont = document.getElementById('chart-ratio-'+TID).parentElement;
+    const W = cont.clientWidth - 44, H = 200;
+    const mg = {top:22, right:84, bottom:48, left:84};
+    const w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+    const svg = d3.select('#chart-ratio-'+TID).attr('width',W).attr('height',H);
+    const g   = svg.append('g').attr('transform',`translate(${mg.left},${mg.top})`);
+
+    const x = d3.scalePoint().domain(monthOrder).range([0,w]).padding(0.08);
+    const y = d3.scaleLinear().domain([0, d3.max(rData,d=>d.ratio)*1.12]).range([h,0]);
+
+    g.append('line').attr('x1',0).attr('x2',w).attr('y1',y(1)).attr('y2',y(1))
+      .attr('stroke','rgba(255,255,255,0.13)').attr('stroke-width',1).attr('stroke-dasharray','4,4');
+    g.append('text').attr('x',w+5).attr('y',y(1)+4).attr('fill','#7a7670')
+      .attr('font-size','9px').attr('font-family','DM Mono,monospace').text('1×');
+
+    const defs3 = svg.append('defs');
+    const gr3 = defs3.append('linearGradient').attr('id','ratg-'+TID).attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+    gr3.append('stop').attr('offset','0%').attr('stop-color','#6bc98a').attr('stop-opacity',0.25);
+    gr3.append('stop').attr('offset','100%').attr('stop-color','#6bc98a').attr('stop-opacity',0.02);
+
+    g.append('path').datum(rData).attr('fill','url(#ratg-'+TID+')')
+      .attr('d', d3.area().x(d=>x(d.month)).y0(h).y1(d=>y(d.ratio)).curve(d3.curveMonotoneX));
+    g.append('path').datum(rData).attr('fill','none').attr('stroke','#6bc98a').attr('stroke-width',2)
+      .attr('d', d3.line().x(d=>x(d.month)).y(d=>y(d.ratio)).curve(d3.curveMonotoneX));
+
+    const pk = rData.reduce((a,b)=>a.ratio>b.ratio?a:b);
+    g.append('circle').attr('cx',x(pk.month)).attr('cy',y(pk.ratio)).attr('r',4.5).attr('fill','#6bc98a');
+    const pkx = x(pk.month)>w*0.7?x(pk.month)-8:x(pk.month)+8;
+    g.append('text').attr('x',pkx).attr('y',y(pk.ratio)-8)
+      .attr('text-anchor',x(pk.month)>w*0.7?'end':'start')
+      .attr('fill','#6bc98a').attr('font-size','10px').attr('font-family','DM Mono,monospace')
+      .text(`${pk.ratio.toFixed(1)}× (${pk.month})`);
+
+    const lrd = rData[rData.length-1];
+    g.append('circle').attr('cx',x(lrd.month)).attr('cy',y(lrd.ratio)).attr('r',3.5).attr('fill','#6bc98a').attr('opacity',0.7);
+    g.append('text').attr('x',x(lrd.month)-8).attr('y',y(lrd.ratio)-9)
+      .attr('text-anchor','end').attr('fill','rgba(107,201,138,0.65)').attr('font-size','10px')
+      .attr('font-family','DM Mono,monospace').text(`${lrd.ratio.toFixed(1)}× atual`);
+
+    g.append('g').attr('transform',`translate(0,${h})`).call(
+      d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=>i%3===0)).tickSize(4)
+    ).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.1)');
+      ax.selectAll('.tick text').attr('fill','#7a7670').attr('font-size','10px').attr('font-family','DM Mono,monospace').attr('dy','1.2em');
+    });
+    g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(d=>`${d.toFixed(1)}×`).tickSize(4)).call(ax=>{
+      ax.select('.domain').attr('stroke','rgba(255,255,255,0.08)');
+      ax.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.05)');
+      ax.selectAll('.tick text').attr('fill','#6bc98a').attr('font-size','10px').attr('font-family','DM Mono,monospace');
+    });
+  }
+
+  drawMain(); drawShares(); drawVolume(); drawRatio();
+  window.addEventListener('resize', () => {
+    d3.select('#chart-main-'+TID).selectAll('*').remove();
+    d3.select('#chart-shares-'+TID).selectAll('*').remove();
+    d3.select('#chart-volume-'+TID).selectAll('*').remove();
+    d3.select('#chart-ratio-'+TID).selectAll('*').remove();
+    drawMain(); drawShares(); drawVolume(); drawRatio();
+  });
+})();
+</script>
+
+
+<div id="tooltip" class="tooltip"></div>
+<div class="updated">Dados ao vivo via Yahoo Finance · Atualizado em 15/06/2026 14:13 UTC</div>
+
+<script>
+
+function switchTab(idx) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.panel').forEach((p,i) => p.classList.toggle('active', i===idx));
+}
+const tooltip = document.getElementById('tooltip');
+function showTT(event, html) {
+  tooltip.innerHTML = html; tooltip.classList.add('on'); moveTT(event);
+}
+function moveTT(event) {
+  let lx = event.clientX + 18, ty = event.clientY - 80;
+  if (lx + 270 > window.innerWidth) lx = event.clientX - 280;
+  if (ty < 10) ty = 10;
+  tooltip.style.left = lx+'px'; tooltip.style.top = ty+'px';
+}
+function hideTT() { tooltip.classList.remove('on'); }
+function fmtM(v) { return v >= 1000 ? '$'+(v/1000).toFixed(2)+'B' : '$'+v.toFixed(0)+'M'; }
+function fmtMs(v) { return (v/1e6).toFixed(1)+'M'; }
+function fmtLocal(v, cur) { return v != null ? cur+' '+v.toFixed(4) : '— suspensa'; }
+
+// activate first panel
+document.querySelectorAll('.panel')[0].classList.add('active');
+</script>
+</body>
+</html>
