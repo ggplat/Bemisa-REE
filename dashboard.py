@@ -22,15 +22,15 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 STOCKS = [
     {"id": "ara", "yf": "ARA.TO", "ticker": "ARA", "exchange": "TSX", "currency": "CAD",
-     "name": "Aclara Resources Inc.",         "project": "Carina · Brasil"},
+     "name": "Aclara Resources Inc.",           "project": "Carina · Brasil"},
     {"id": "bre", "yf": "BRE.AX", "ticker": "BRE", "exchange": "ASX", "currency": "AUD",
-     "name": "Brazilian Rare Earths Ltd.",     "project": "Monte Alto · Brasil"},
+     "name": "Brazilian Rare Earths Ltd.",       "project": "BRE · Brasil"},
     {"id": "mei", "yf": "MEI.AX", "ticker": "MEI", "exchange": "ASX", "currency": "AUD",
-     "name": "Meteoric Resources NL",          "project": "Caldeira · Brasil"},
+     "name": "Meteoric Resources NL",            "project": "Caldeira · Brasil"},
     {"id": "rau", "yf": "RAU.AX", "ticker": "RAU", "exchange": "ASX", "currency": "AUD",
-     "name": "Radium Capital Ltd.",            "project": "Itamogi · Brasil"},
+     "name": "Resouro Strategic Metals Ltd.",    "project": "Itamogi · Brasil"},
     {"id": "sgq", "yf": "SGQ.AX", "ticker": "SGQ", "exchange": "ASX", "currency": "AUD",
-     "name": "St. George Mining Ltd.",         "project": "Araxá · Brasil"},
+     "name": "St. George Mining Ltd.",           "project": "Araxá · Brasil"},
     {"id": "vmm", "yf": "VMM.AX", "ticker": "VMM", "exchange": "ASX", "currency": "AUD",
      "name": "Viridis Mining and Minerals Ltd.", "project": "Colossus · Brasil"},
 ]
@@ -38,6 +38,23 @@ STOCKS = [
 FX_SYMBOLS = {
     "CAD": "CADUSD=X",
     "AUD": "AUDUSD=X",
+}
+
+# Último fechamento conhecido — fallback quando yfinance não está disponível.
+# Atualizado automaticamente pelo GitHub Actions; usado como seed inicial.
+FALLBACK: dict[str, dict] = {
+    "fx": {
+        "CAD": 0.7338,   # mar/2026
+        "AUD": 0.6310,   # dez/2025
+    },
+    "stocks": {
+        "ara": {"price": 3.1514, "date": "2026-03-31", "shares": 219985221},
+        "bre": {"price": 4.6500, "date": "2025-12-31", "shares": 275713606},
+        "mei": {"price": 0.0920, "date": "2025-12-31", "shares": 2646398877},
+        "rau": {"price": None,   "date": None,          "shares": None},
+        "sgq": {"price": 0.0430, "date": "2025-12-31", "shares": 1124244808},
+        "vmm": {"price": 0.1200, "date": "2025-12-31", "shares": 503350000},
+    },
 }
 
 # ── FETCH ─────────────────────────────────────────────────────────────────────
@@ -74,23 +91,31 @@ def fetch_all() -> dict:
     Retorna dict com:
       fx[currency] = float
       stocks[id]   = {price, date, shares, mcap_usd_m}
+
+    Usa FALLBACK para qualquer valor que yfinance não consiga retornar,
+    garantindo que o HTML sempre exibe dados (ao menos os mais recentes hardcoded).
     """
-    # FX
+    # FX — yfinance tem prioridade; fallback se falhar
     fx: dict[str, Optional[float]] = {}
     for cur, sym in FX_SYMBOLS.items():
         if any(s["currency"] == cur for s in STOCKS):
             log.info("Buscando FX %s/USD...", cur)
             rate, _ = fetch_last_close(sym)
-            fx[cur] = rate
+            fx[cur] = rate or FALLBACK["fx"].get(cur)
 
     # Ações
     stocks: dict[str, dict] = {}
     for s in STOCKS:
         log.info("Buscando %s (%s)...", s["ticker"], s["yf"])
+        fb = FALLBACK["stocks"].get(s["id"], {})
         price, date = fetch_last_close(s["yf"])
         shares      = fetch_shares(s["yf"])
-        rate        = fx.get(s["currency"])
-        mcap        = (price * shares * rate / 1e6) if (price and shares and rate) else None
+        # Aplica fallback por campo individualmente
+        price  = price  or fb.get("price")
+        date   = date   or fb.get("date")
+        shares = shares or fb.get("shares")
+        rate   = fx.get(s["currency"])
+        mcap   = (price * shares * rate / 1e6) if (price and shares and rate) else None
         stocks[s["id"]] = {
             "price":      price,
             "date":       date,
