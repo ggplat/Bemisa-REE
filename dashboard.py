@@ -130,151 +130,223 @@ def fetch_all() -> dict:
 # ── HTML ──────────────────────────────────────────────────────────────────────
 
 CSS = """
-:root {
-  --bg: #07090f; --surface: #0d1018; --surface2: #131720;
-  --border: rgba(255,255,255,0.07); --text: #e8e4dc;
-  --muted: #6b6760; --gold: #c9a84c; --teal: #4ec9b0;
-  --green: #6bc98a; --blue: #5ca8e0;
+:root{
+  --bg:#f4f5ef; --panel:#ffffff; --panel2:#eef1e6; --line:#e0e3d6;
+  --txt:#414042; --mut:#6f7168; --dim:#9a9c92;
+  --asx:#6f8a36; --tsx:#00557f;
+  --up:#4f7a1f; --down:#c0392b;
+  --mark:#7c9640;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  background: var(--bg); color: var(--text);
-  font-family: 'DM Sans', sans-serif; font-size: 13px;
-  min-height: 100vh; padding: 40px 32px 60px;
+html[data-theme="dark"]{
+  --bg:#1b1d17; --panel:#23261e; --panel2:#2a2d23; --line:#393c30;
+  --txt:#eef0e4; --mut:#abada0; --dim:#76786b;
+  --asx:#a7af39; --tsx:#6bb3dd;
+  --up:#9ccc4e; --down:#e5736b;
+  --mark:#a7af39;
 }
-header {
-  display: flex; justify-content: space-between; align-items: flex-end;
-  margin-bottom: 40px; padding-bottom: 20px;
-  border-bottom: 1px solid var(--border);
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--txt);
+  font-family:Calibri,"Segoe UI",Carlito,system-ui,-apple-system,sans-serif;
+  font-size:15px; line-height:1.45; -webkit-font-smoothing:antialiased;
+  padding-bottom:50px;
 }
-header h1 {
-  font-family: 'Cormorant Garamond', serif; font-size: 26px;
-  font-weight: 300; letter-spacing: 0.04em;
+header{
+  position:sticky; top:0; z-index:30; background:var(--bg);
+  background-image:linear-gradient(118deg,color-mix(in srgb,var(--mark) 12%,transparent),transparent 45%);
+  border-bottom:1px solid var(--line); padding:13px 16px 10px;
 }
-header h1 em { color: var(--gold); font-style: italic; }
-.updated {
-  font-family: 'DM Mono', monospace; font-size: 9px;
-  color: var(--muted); letter-spacing: 0.1em; text-align: right;
+.title-row{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
+.wordmark{display:flex; align-items:center; gap:6px; font-weight:700; font-size:11px;
+  letter-spacing:2.5px; color:var(--txt); margin-bottom:3px}
+.wm-mark{width:9px; height:9px; background:var(--mark); display:inline-block}
+h1{font-size:18px; font-weight:700; letter-spacing:-.2px; color:var(--txt)}
+h1 .sub{color:var(--mut); font-weight:600}
+.head-actions{display:flex; gap:6px; align-items:center}
+.theme-btn{
+  background:var(--panel); color:var(--mut); border:1px solid var(--line);
+  border-radius:7px; padding:5px 10px; font-size:13px; cursor:pointer;
+  font-family:inherit;
 }
-.updated span { color: var(--green); }
-table {
-  width: 100%; border-collapse: collapse; table-layout: fixed;
+.theme-btn:hover{color:var(--txt); border-color:var(--mut)}
+.stats{display:flex; gap:16px; margin-top:9px; font-size:12.5px; color:var(--mut);
+  flex-wrap:wrap; font-variant-numeric:tabular-nums}
+.stats b{color:var(--txt); font-weight:700}
+main{padding:12px 16px}
+table{
+  width:100%; border-collapse:collapse;
+  background:var(--panel); border:1px solid var(--line);
+  border-radius:12px; overflow:hidden;
 }
-th {
-  font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 400;
-  letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted);
-  padding: 10px 16px; text-align: right; border-bottom: 1px solid var(--border);
+thead tr{background:var(--panel2)}
+th{
+  padding:10px 14px; text-align:right;
+  font-size:11px; font-weight:700; letter-spacing:.6px;
+  text-transform:uppercase; color:var(--mut);
+  border-bottom:1px solid var(--line); white-space:nowrap;
 }
-th:first-child { text-align: left; }
-td {
-  padding: 18px 16px; border-bottom: 1px solid rgba(255,255,255,0.04);
-  vertical-align: middle;
+th:first-child{text-align:left; padding-left:18px}
+th:last-child{padding-right:18px}
+td{
+  padding:14px 14px; border-bottom:1px solid var(--line);
+  vertical-align:middle; text-align:right;
 }
-tr:last-child td { border-bottom: none; }
-tr:hover td { background: rgba(255,255,255,0.018); }
-.company { display: flex; flex-direction: column; gap: 3px; }
-.company-ticker {
-  font-family: 'DM Mono', monospace; font-size: 14px;
-  font-weight: 400; color: var(--gold); letter-spacing: 0.06em;
+td:first-child{text-align:left; padding-left:0}
+td:last-child{padding-right:18px}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:color-mix(in srgb,var(--mark) 5%,transparent)}
+.co-cell{
+  display:flex; align-items:center; gap:0;
+  border-left:3px solid var(--excolor,var(--mut));
+  padding-left:15px;
 }
-.company-name { font-size: 12px; color: var(--text); font-weight: 300; }
-.company-project { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; letter-spacing: 0.05em; }
-.exchange-badge {
-  display: inline-block; font-family: 'DM Mono', monospace; font-size: 9px;
-  letter-spacing: 0.1em; padding: 2px 7px;
-  border: 1px solid var(--border); border-radius: 2px; color: var(--muted);
+.co-info{display:flex; flex-direction:column; gap:2px}
+.co-tk{font-weight:700; font-size:15px; letter-spacing:.4px; color:var(--txt)}
+.co-name{font-size:12px; color:var(--mut)}
+.co-proj{font-size:11px; color:var(--dim)}
+.badge{
+  display:inline-block; font-size:10px; font-weight:700; padding:2px 7px;
+  border-radius:5px; letter-spacing:.4px; white-space:nowrap;
 }
-.num {
-  font-family: 'Cormorant Garamond', serif; font-size: 20px;
-  font-weight: 300; text-align: right;
+.badge.ex-asx{color:var(--asx); background:color-mix(in srgb,var(--asx) 14%,transparent)}
+.badge.ex-tsx{color:var(--tsx); background:color-mix(in srgb,var(--tsx) 14%,transparent)}
+.val{font-variant-numeric:tabular-nums; font-size:14px; font-weight:600; color:var(--txt)}
+.val.price{}
+.val.fx{color:var(--mut); font-weight:400}
+.val.mcap{color:var(--asx)}
+.val.mcap.tsx{color:var(--tsx)}
+.val-unit{font-size:11px; font-weight:400; color:var(--dim); margin-right:2px}
+.val-suffix{font-size:11px; font-weight:400; color:var(--mut); margin-left:1px}
+.val.na{color:var(--dim); font-weight:400}
+.date-tag{
+  display:inline-block; font-size:11px; color:var(--mut);
+  font-variant-numeric:tabular-nums;
 }
-.num.price { color: var(--text); }
-.num.fx    { color: var(--muted); font-size: 17px; }
-.num.mcap  { color: var(--teal); }
-.num sup   { font-size: 11px; color: var(--muted); margin-right: 2px; font-family: 'DM Mono', monospace; }
-.num.na    { color: var(--muted); font-size: 13px; font-family: 'DM Mono', monospace; }
-.date-badge {
-  font-family: 'DM Mono', monospace; font-size: 9px;
-  color: var(--green); border: 1px solid rgba(107,201,138,0.3);
-  border-radius: 2px; padding: 2px 6px; white-space: nowrap;
+"""
+
+JS = """
+function toggleTheme(){
+  const h = document.documentElement;
+  const dark = h.getAttribute('data-theme') === 'dark';
+  h.setAttribute('data-theme', dark ? 'light' : 'dark');
+  document.getElementById('themeBtn').textContent = dark ? 'escuro' : 'claro';
+  try { localStorage.setItem('theme', dark ? 'light' : 'dark'); } catch(e){}
 }
+(function(){
+  try {
+    const t = localStorage.getItem('theme');
+    if(t){ document.documentElement.setAttribute('data-theme', t);
+           const btn = document.getElementById('themeBtn');
+           if(btn) btn.textContent = t === 'dark' ? 'claro' : 'escuro'; }
+  } catch(e){}
+})();
 """
 
 def fmt_price(price: Optional[float], currency: str) -> str:
     if price is None:
-        return '<span class="num na">—</span>'
-    return f'<span class="num price"><sup>{currency}</sup>{price:.4f}</span>'
+        return '<span class="val na">—</span>'
+    return (f'<span class="val price">'
+            f'<span class="val-unit">{currency}</span>{price:.4f}</span>')
 
 def fmt_fx(rate: Optional[float], currency: str) -> str:
     if rate is None:
-        return '<span class="num na">—</span>'
-    return f'<span class="num fx">{rate:.4f}</span>'
+        return '<span class="val na">—</span>'
+    return (f'<span class="val fx">{rate:.4f}'
+            f'<span class="val-suffix">{currency}/USD</span></span>')
 
-def fmt_mcap(mcap: Optional[float]) -> str:
+def fmt_mcap(mcap: Optional[float], exchange: str) -> str:
     if mcap is None:
-        return '<span class="num na">—</span>'
+        return '<span class="val na">—</span>'
+    cls = "tsx" if exchange == "TSX" else ""
     if mcap >= 1000:
-        return f'<span class="num mcap"><sup>USD</sup>{mcap/1000:.2f}<small style="font-size:13px;color:var(--muted)">B</small></span>'
-    return f'<span class="num mcap"><sup>USD</sup>{mcap:.0f}<small style="font-size:13px;color:var(--muted)">M</small></span>'
+        return (f'<span class="val mcap {cls}">'
+                f'<span class="val-unit">USD</span>{mcap/1000:.2f}'
+                f'<span class="val-suffix">B</span></span>')
+    return (f'<span class="val mcap {cls}">'
+            f'<span class="val-unit">USD</span>{mcap:.0f}'
+            f'<span class="val-suffix">M</span></span>')
 
 def fmt_date(date: Optional[str]) -> str:
     if not date:
-        return '<span class="num na">—</span>'
-    return f'<span class="date-badge">{date}</span>'
+        return '<span class="val na">—</span>'
+    # Convert ISO date to dd/mm/yyyy for display
+    try:
+        parts = date.split("-")
+        display = f"{parts[2]}/{parts[1]}/{parts[0]}"
+    except Exception:
+        display = date
+    return f'<span class="date-tag">{display}</span>'
 
 
 def render_html(data: dict, updated: str) -> str:
     rows_html = ""
     for s in STOCKS:
         d = data["stocks"][s["id"]]
+        ex_lower = s["exchange"].lower()
+        ex_color = "var(--asx)" if s["exchange"] == "ASX" else "var(--tsx)"
         rows_html += f"""
-  <tr>
-    <td>
-      <div class="company">
-        <span class="company-ticker">{s["ticker"]}</span>
-        <span class="company-name">{s["name"]}</span>
-        <span class="company-project">{s["project"]}</span>
-      </div>
-    </td>
-    <td style="text-align:center"><span class="exchange-badge">{s["exchange"]}</span></td>
-    <td>{fmt_date(d["date"])}</td>
-    <td>{fmt_price(d["price"], s["currency"])}</td>
-    <td>{fmt_fx(d["fx"], s["currency"])}</td>
-    <td>{fmt_mcap(d["mcap_usd_m"])}</td>
-  </tr>"""
+    <tr>
+      <td>
+        <div class="co-cell" style="--excolor:{ex_color}">
+          <div class="co-info">
+            <span class="co-tk">{s["ticker"]}</span>
+            <span class="co-name">{s["name"]}</span>
+            <span class="co-proj">{s["project"]}</span>
+          </div>
+        </div>
+      </td>
+      <td style="text-align:left"><span class="badge ex-{ex_lower}">{s["exchange"]}</span></td>
+      <td>{fmt_date(d["date"])}</td>
+      <td>{fmt_price(d["price"], s["currency"])}</td>
+      <td>{fmt_fx(d["fx"], s["currency"])}</td>
+      <td>{fmt_mcap(d["mcap_usd_m"], s["exchange"])}</td>
+    </tr>"""
+
+    n_live = sum(1 for s in STOCKS if data["stocks"][s["id"]]["date"] is not None)
 
     return f"""<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>REE Monitor — Market Cap Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Market Cap Monitor &middot; REE</title>
 <style>{CSS}</style>
 </head>
 <body>
 <header>
-  <h1>REE Monitor &mdash; <em>Market Cap Dashboard</em></h1>
-  <div class="updated">
-    Dados via Yahoo Finance<br>
-    Atualizado em <span>{updated}</span>
+  <div class="title-row">
+    <div>
+      <div class="wordmark"><span class="wm-mark"></span>BEMISA</div>
+      <h1>Market Cap Monitor <span class="sub">&middot; REE</span></h1>
+    </div>
+    <div class="head-actions">
+      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">escuro</button>
+    </div>
+  </div>
+  <div class="stats">
+    <span><b>{len(STOCKS)}</b> empresas</span>
+    <span><b>{n_live}</b> com dados</span>
+    <span>atualizado {updated}</span>
   </div>
 </header>
 
+<main>
 <table>
   <thead>
     <tr>
-      <th style="width:28%">Empresa</th>
-      <th style="width:8%;text-align:center">Bolsa</th>
-      <th style="width:12%">Fechamento</th>
-      <th style="width:16%">Preço Último Fech.</th>
-      <th style="width:14%">Câmbio / USD</th>
-      <th style="width:16%">Market Cap</th>
+      <th style="width:30%; text-align:left; padding-left:18px">Empresa</th>
+      <th style="width:7%; text-align:left">Bolsa</th>
+      <th style="width:12%">Último Fech.</th>
+      <th style="width:17%">Preço</th>
+      <th style="width:17%">Câmbio</th>
+      <th style="width:17%">Market Cap</th>
     </tr>
   </thead>
   <tbody>{rows_html}
   </tbody>
 </table>
+</main>
+<script>{JS}</script>
 </body>
 </html>"""
 
