@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REE Monitor — Market Cap Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #07090f; --surface: #0d1018; --surface2: #131720;
+  --border: rgba(255,255,255,0.07); --text: #e8e4dc;
+  --muted: #6b6760; --gold: #c9a84c; --teal: #4ec9b0;
+  --green: #6bc98a; --blue: #5ca8e0;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'DM Sans', sans-serif; font-size: 13px;
+  min-height: 100vh; padding: 40px 32px 60px;
+}
+header {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  margin-bottom: 40px; padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+header h1 {
+  font-family: 'Cormorant Garamond', serif; font-size: 26px;
+  font-weight: 300; letter-spacing: 0.04em;
+}
+header h1 em { color: var(--gold); font-style: italic; }
+.updated {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  color: var(--muted); letter-spacing: 0.1em; text-align: right;
+}
+.updated span { color: var(--green); }
+table {
+  width: 100%; border-collapse: collapse; table-layout: fixed;
+}
+th {
+  font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 400;
+  letter-spacing: 0.13em; text-transform: uppercase; color: var(--muted);
+  padding: 10px 16px; text-align: right; border-bottom: 1px solid var(--border);
+}
+th:first-child { text-align: left; }
+td {
+  padding: 18px 16px; border-bottom: 1px solid rgba(255,255,255,0.04);
+  vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.018); }
+.company { display: flex; flex-direction: column; gap: 3px; }
+.company-ticker {
+  font-family: 'DM Mono', monospace; font-size: 14px;
+  font-weight: 400; color: var(--gold); letter-spacing: 0.06em;
+}
+.company-name { font-size: 12px; color: var(--text); font-weight: 300; }
+.company-project { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; letter-spacing: 0.05em; }
+.exchange-badge {
+  display: inline-block; font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: 0.1em; padding: 2px 7px;
+  border: 1px solid var(--border); border-radius: 2px; color: var(--muted);
+}
+.num {
+  font-family: 'Cormorant Garamond', serif; font-size: 20px;
+  font-weight: 300; text-align: right;
+}
+.num.price { color: var(--text); }
+.num.fx    { color: var(--muted); font-size: 17px; }
+.num.mcap  { color: var(--teal); }
+.num sup   { font-size: 11px; color: var(--muted); margin-right: 2px; font-family: 'DM Mono', monospace; }
+.num.na    { color: var(--muted); font-size: 13px; font-family: 'DM Mono', monospace; }
+.date-badge {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  color: var(--green); border: 1px solid rgba(107,201,138,0.3);
+  border-radius: 2px; padding: 2px 6px; white-space: nowrap;
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>REE Monitor &mdash; <em>Market Cap Dashboard</em></h1>
+  <div class="updated">
+    Dados via Yahoo Finance<br>
+    Atualizado em <span>18/06/2026 19:40 UTC</span>
+  </div>
+</header>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:28%">Empresa</th>
+      <th style="width:8%;text-align:center">Bolsa</th>
+      <th style="width:12%">Fechamento</th>
+      <th style="width:16%">Preço Último Fech.</th>
+      <th style="width:14%">Câmbio / USD</th>
+      <th style="width:16%">Market Cap</th>
+    </tr>
+  </thead>
+  <tbody>
+  <tr>
+    <td>
+      <div class="company">
+        <span class="company-ticker">ARA</span>
+        <span class="company-name">Aclara Resources Inc.</span>
+        <span class="company-project">Carina · Brasil</span>
+      </div>
+    </td>
+    <td style="text-align:center"><span class="exchange-badge">TSX</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+  </tr>
+  <tr>
+    <td>
+      <div class="company">
+        <span class="company-ticker">BRE</span>
+        <span class="company-name">Brazilian Rare Earths Ltd.</span>
+        <span class="company-project">Monte Alto · Brasil</span>
+      </div>
+    </td>
+    <td style="text-align:center"><span class="exchange-badge">ASX</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+  </tr>
+  <tr>
+    <td>
+      <div class="company">
+        <span class="company-ticker">MEI</span>
+        <span class="company-name">Meteoric Resources NL</span>
+        <span class="company-project">Caldeira · Brasil</span>
+      </div>
+    </td>
+    <td style="text-align:center"><span class="exchange-badge">ASX</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+  </tr>
+  <tr>
+    <td>
+      <div class="company">
+        <span class="company-ticker">RAU</span>
+        <span class="company-name">Radium Capital Ltd.</span>
+        <span class="company-project">Itamogi · Brasil</span>
+      </div>
+    </td>
+    <td style="text-align:center"><span class="exchange-badge">ASX</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+  </tr>
+  <tr>
+    <td>
+      <div class="company">
+        <span class="company-ticker">SGQ</span>
+        <span class="company-name">St. George Mining Ltd.</span>
+        <span class="company-project">Araxá · Brasil</span>
+      </div>
+    </td>
+    <td style="text-align:center"><span class="exchange-badge">ASX</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+  </tr>
+  <tr>
+    <td>
+      <div class="company">
+        <span class="company-ticker">VMM</span>
+        <span class="company-name">Viridis Mining and Minerals Ltd.</span>
+        <span class="company-project">Colossus · Brasil</span>
+      </div>
+    </td>
+    <td style="text-align:center"><span class="exchange-badge">ASX</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+    <td><span class="num na">—</span></td>
+  </tr>
+  </tbody>
+</table>
+</body>
+</html>

@@ -1,0 +1,41 @@
+name: Atualizar Dashboard REE
+
+on:
+  schedule:
+    - cron: "0 22 * * 1-5"   # 22:00 UTC seg-sex (após fechamento ASX e TSX)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-dashboard
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: claude/laughing-einstein-6nif95
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Gerar dashboard
+        run: python dashboard.py
+
+      - name: Commit e push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          git diff --staged --quiet || git commit -m "dashboard: atualiza $(date -u +%Y-%m-%d)"
+          git push
