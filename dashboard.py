@@ -224,7 +224,16 @@ tbody tr:hover td{background:color-mix(in srgb,var(--mark) 5%,transparent)}
 }
 """
 
-JS = """
+JS_HEAD = """
+(function(){
+  try {
+    const t = localStorage.getItem('theme');
+    if(t) document.documentElement.setAttribute('data-theme', t);
+  } catch(e){}
+})();
+"""
+
+JS_BODY = """
 function toggleTheme(){
   const h = document.documentElement;
   const dark = h.getAttribute('data-theme') === 'dark';
@@ -235,9 +244,10 @@ function toggleTheme(){
 (function(){
   try {
     const t = localStorage.getItem('theme');
-    if(t){ document.documentElement.setAttribute('data-theme', t);
-           const btn = document.getElementById('themeBtn');
-           if(btn) btn.textContent = t === 'dark' ? 'claro' : 'escuro'; }
+    if(t){
+      const btn = document.getElementById('themeBtn');
+      if(btn) btn.textContent = t === 'dark' ? 'claro' : 'escuro';
+    }
   } catch(e){}
 })();
 """
@@ -311,6 +321,7 @@ def render_html(data: dict, updated: str) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Market Cap Monitor &middot; REE</title>
 <style>{CSS}</style>
+<script>{JS_HEAD}</script>
 </head>
 <body>
 <header>
@@ -346,7 +357,7 @@ def render_html(data: dict, updated: str) -> str:
   </tbody>
 </table>
 </main>
-<script>{JS}</script>
+<script>{JS_BODY}</script>
 </body>
 </html>"""
 
