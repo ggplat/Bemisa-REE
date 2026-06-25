@@ -98,6 +98,14 @@ tbody tr:hover td{background:color-mix(in srgb,var(--mark) 5%,transparent)}
   font-variant-numeric:tabular-nums;
 }
 </style>
+<script>
+(function(){
+  try {
+    const t = localStorage.getItem('theme');
+    if(t) document.documentElement.setAttribute('data-theme', t);
+  } catch(e){}
+})();
+</script>
 </head>
 <body>
 <header>
@@ -240,9 +248,10 @@ function toggleTheme(){
 (function(){
   try {
     const t = localStorage.getItem('theme');
-    if(t){ document.documentElement.setAttribute('data-theme', t);
-           const btn = document.getElementById('themeBtn');
-           if(btn) btn.textContent = t === 'dark' ? 'claro' : 'escuro'; }
+    if(t){
+      const btn = document.getElementById('themeBtn');
+      if(btn) btn.textContent = t === 'dark' ? 'claro' : 'escuro';
+    }
   } catch(e){}
 })();
 </script>
