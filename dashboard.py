@@ -204,6 +204,8 @@ tbody tr:hover td{background:color-mix(in srgb,var(--mark) 5%,transparent)}
 .co-tk{font-weight:700; font-size:15px; letter-spacing:.4px; color:var(--txt)}
 .co-name{font-size:12px; color:var(--mut)}
 .co-proj{font-size:11px; color:var(--dim)}
+.co-meta{display:flex; align-items:center; gap:8px; margin-top:3px}
+.co-meta .val{font-size:12px}
 .badge{
   display:inline-block; font-size:10px; font-weight:700; padding:2px 7px;
   border-radius:5px; letter-spacing:.4px; white-space:nowrap;
@@ -302,6 +304,10 @@ def render_html(data: dict, updated: str) -> str:
             <span class="co-tk">{s["ticker"]}</span>
             <span class="co-name">{s["name"]}</span>
             <span class="co-proj">{s["project"]}</span>
+            <div class="co-meta">
+              <span class="badge ex-{ex_lower}">{s["exchange"]}</span>
+              {fmt_mcap(d["mcap_usd_m"], s["exchange"])}
+            </div>
           </div>
         </div>
       </td>
