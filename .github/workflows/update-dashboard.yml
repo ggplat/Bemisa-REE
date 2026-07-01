@@ -26,16 +26,25 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Instalar dependências
+      - name: Instalar dependências (market cap monitor)
         run: pip install -r requirements.txt
 
-      - name: Gerar dashboard
+      - name: Gerar dashboard (market cap monitor)
         run: python dashboard.py
+
+      - name: Instalar dependências (comunicados)
+        run: pip install -r comunicados/requirements.txt
+
+      - name: Testes (comunicados, offline)
+        run: python -m unittest discover -s comunicados/tests -v
+
+      - name: Gerar dashboard (comunicados)
+        run: python comunicados/ree_monitor.py --dashboard -v
 
       - name: Commit e push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/index.html
+          git add docs/index.html docs/comunicados/index.html
           git diff --staged --quiet || git commit -m "dashboard: atualiza $(date -u +%Y-%m-%d)"
           git push
