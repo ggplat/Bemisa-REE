@@ -25,55 +25,31 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-      - name: Descobrir a URL certa da pagina de noticias da IMC (sem publicar nada)
+      - name: Inspecionar a estrutura da pagina real de noticias da IMC (sem publicar nada)
         run: |
           python3 << 'PYEOF'
           from sources import http_util
           from bs4 import BeautifulSoup
 
-          candidates = [
-              "https://ir.imcrareearths.com/",
-              "https://ir.imcrareearths.com/news-releases",
-              "https://ir.imcrareearths.com/news",
-              "https://ir.imcrareearths.com/press-releases",
-              "https://ir.imcrareearths.com/news-events/press-releases",
-              "https://ir.imcrareearths.com/news-events",
-              "https://imcrareearths.com/",
-              "https://imcrareearths.com/news/",
-              "https://imcrareearths.com/press/",
-              "https://imcrareearths.com/media/",
-          ]
-          for url in candidates:
-              resp = http_util.get(url, retries=1)
-              print(f"{url} -> {'HTTP 200' if resp else 'falhou/nao-200'}")
+          url = "https://ir.imcrareearths.com/news-events/news-releases"
+          resp = http_util.get(url, retries=2)
+          print(f"{url} -> {'HTTP 200' if resp else 'falhou/nao-200'}")
+          if not resp:
+              raise SystemExit(0)
 
+          soup = BeautifulSoup(resp.text, "html.parser")
+          links = [a for a in soup.find_all("a", href=True) if "news-release-details" in a["href"]]
+          print(f"Encontrados {len(links)} links de news-release-details")
           print()
-          print("=== Links de navegacao da home ir.imcrareearths.com (se 200) ===")
-          resp = http_util.get("https://ir.imcrareearths.com/", retries=1)
-          if resp:
-              soup = BeautifulSoup(resp.text, "html.parser")
-              seen = set()
-              for a in soup.find_all("a", href=True):
-                  href = a["href"].strip()
-                  text = a.get_text(" ", strip=True).lower()
-                  if href in seen:
-                      continue
-                  if any(k in href.lower() or k in text for k in ("news", "press", "media", "release")):
-                      seen.add(href)
-                      print(f"  {href}  ({a.get_text(' ', strip=True)!r})")
-
-          print()
-          print("=== Links de navegacao da home imcrareearths.com (se 200) ===")
-          resp2 = http_util.get("https://imcrareearths.com/", retries=1)
-          if resp2:
-              soup2 = BeautifulSoup(resp2.text, "html.parser")
-              seen2 = set()
-              for a in soup2.find_all("a", href=True):
-                  href = a["href"].strip()
-                  text = a.get_text(" ", strip=True).lower()
-                  if href in seen2:
-                      continue
-                  if any(k in href.lower() or k in text for k in ("news", "press", "media", "release")):
-                      seen2.add(href)
-                      print(f"  {href}  ({a.get_text(' ', strip=True)!r})")
+          for a in links[:5]:
+              # imprime um pedaco do HTML ao redor de cada link (containers pai),
+              # pra localizar onde a data fica
+              container = a
+              for _ in range(3):
+                  if container.parent:
+                      container = container.parent
+              html_snippet = str(container)[:1200]
+              print("--- item ---")
+              print(html_snippet)
+              print()
           PYEOF
