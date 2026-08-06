@@ -87,3 +87,6 @@ bolsa). Exemplo:
   disponível como tipo `yahoo` em `sources/canada.py` para quem precisar de um agregador.
 - O **botão "atualizar"** recarrega a página. Para forçar uma nova coleta sob demanda,
   use **Run workflow** em Actions (a coleta roda no servidor, não no navegador).
+- O **menu de empresas** (chips no topo) é ordenado **alfabeticamente pelo ticker,
+  ignorando a bolsa** — `companies.json` continua agrupado por bolsa só para
+  facilitar a edição do arquivo.

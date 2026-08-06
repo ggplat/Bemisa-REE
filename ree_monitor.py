@@ -37,7 +37,10 @@ def load_companies(path: str = None) -> list[Company]:
     path = path or os.path.join(ROOT, "companies.json")
     with open(path, encoding="utf-8") as fh:
         data = json.load(fh)
-    return [Company(**{k: v for k, v in c.items()}) for c in data["companies"]]
+    companies = [Company(**{k: v for k, v in c.items()}) for c in data["companies"]]
+    # ordem alfabetica por ticker no menu, independente da bolsa (companies.json
+    # continua agrupado por bolsa so para facilitar a edicao do arquivo)
+    return sorted(companies, key=lambda c: c.ticker)
 
 
 def collect_live(companies: list[Company]) -> dict[str, list[Announcement]]:
