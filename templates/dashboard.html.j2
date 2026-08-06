@@ -9,14 +9,14 @@
   /* Bemisa - cores principais e secundarias (tema claro, padrao) */
   --bg:#f4f5ef; --panel:#ffffff; --panel2:#eef1e6; --line:#e0e3d6;
   --txt:#414042; --mut:#6f7168; --dim:#9a9c92;
-  --asx:#6f8a36; --tsx:#00557f; --cse:#a07d0c; --ps:#b9810a;
+  --asx:#6f8a36; --tsx:#00557f; --cse:#a07d0c; --nyse:#a8502e; --ps:#b9810a;
   --accent:#6f8a36; --link:#00557f; --up:#4f7a1f; --down:#c0392b;
   --brand:#414042; --mark:#7c9640;
 }
 html[data-theme="dark"]{
   --bg:#1b1d17; --panel:#23261e; --panel2:#2a2d23; --line:#393c30;
   --txt:#eef0e4; --mut:#abada0; --dim:#76786b;
-  --asx:#a7af39; --tsx:#6bb3dd; --cse:#d3bd2a; --ps:#fcaf17;
+  --asx:#a7af39; --tsx:#6bb3dd; --cse:#d3bd2a; --nyse:#e2946f; --ps:#fcaf17;
   --accent:#a7af39; --link:#8fc6e8; --up:#9ccc4e; --down:#e5736b;
   --brand:#eef0e4; --mark:#a7af39;
 }
@@ -74,6 +74,7 @@ nav::-webkit-scrollbar{height:0}
 .chip.ex-asx{border-left:3px solid var(--asx)}
 .chip.ex-tsx{border-left:3px solid var(--tsx)}
 .chip.ex-cse{border-left:3px solid var(--cse)}
+.chip.ex-nyse{border-left:3px solid var(--nyse)}
 .controls{
   display:flex; gap:8px; padding:10px 16px; position:sticky; top:0; z-index:10;
   background:var(--bg); border-bottom:1px solid var(--line); flex-wrap:wrap;
@@ -134,6 +135,7 @@ main{padding:8px 12px}
 .badge.ex-asx{color:var(--asx); background:color-mix(in srgb,var(--asx) 16%,transparent)}
 .badge.ex-tsx{color:var(--tsx); background:color-mix(in srgb,var(--tsx) 16%,transparent)}
 .badge.ex-cse{color:var(--cse); background:color-mix(in srgb,var(--cse) 18%,transparent)}
+.badge.ex-nyse{color:var(--nyse); background:color-mix(in srgb,var(--nyse) 16%,transparent)}
 .co-meta{display:flex; justify-content:space-between; align-items:center;
   margin-top:6px; font-size:12px}
 .co-count{color:var(--dim)}

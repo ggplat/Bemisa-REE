@@ -294,6 +294,73 @@ class TestCanada(unittest.TestCase):
         self.assertEqual(anns[0].source, "Energy Fuels")
         self.assertEqual(anns[0].exchange, "TSX")
 
+    def test_imc_html_parsing(self):
+        from sources.canada import parse_imc_html
+        comp = Company(ticker="IMC", exchange="NYSE", name="IMC Rare Earths",
+                       yf_symbol="IMC", company_url="https://www.nyse.com/quote/XASE:IMC",
+                       news={"type": "imc"})
+        # estrutura real da plataforma de IR "Notified" (ir.imcrareearths.com/news-events/news-releases):
+        # o link aparece 2x (manchete + botao "Read More"); usamos o aria-label do
+        # "Read More" como titulo e buscamos a data no mesmo bloco "field--group".
+        html = """
+        <html><body>
+          <div class="llf-col-md-12 llf-px-0 lfg-details">
+            <div class="nir-widget--field" data-label="Title">
+              <div class="nir-widget--field nir-widget--news--headline">
+                <a href="/news-releases/news-release-details/imc-rare-earths-begins-trading-nyse-american-under-ticker-symbol" hreflang="en">IMC Rare Earths Begins Trading on NYSE American Under Ticker Symbol &#8220;IMC&#8221;</a>
+              </div>
+              <div class="nir-widget--field nir-widget--news--teaser" data-label="Teaser">
+                <p>Company seeking to establish one of the largest rare earth deposits outside China...</p>
+              </div>
+            </div>
+          </div>
+          <div class="nir-widget--field--group llf-row">
+            <div class="llf-col-6 llf-col-sm-8 llf-d-flex llf-align-items-center">
+              <div class="nir-widget--field nir-widget--news--date-time">
+                July 29, 2026
+              </div>
+            </div>
+            <div class="llf-col-6 llf-col-sm-4 llf-d-flex llf-align-items-center llf-justify-content-end">
+              <div class="mt-auto text-end">
+                <a aria-label="Read more about IMC Rare Earths Begins Trading on NYSE American Under Ticker Symbol &#8220;IMC&#8221;" class="btn-galaxy-plus-primary" href="/news-releases/news-release-details/imc-rare-earths-begins-trading-nyse-american-under-ticker-symbol">Read More</a>
+              </div>
+            </div>
+          </div>
+          <div class="llf-col-md-12 llf-px-0 lfg-details">
+            <div class="nir-widget--field" data-label="Title">
+              <div class="nir-widget--field nir-widget--news--headline">
+                <a href="/news-releases/news-release-details/imc-rare-earths-ltd-announces-pricing-initial-public-offering" hreflang="en">IMC Rare Earths Ltd Announces Pricing of Initial Public Offering</a>
+              </div>
+            </div>
+          </div>
+          <div class="nir-widget--field--group llf-row">
+            <div class="llf-col-6 llf-col-sm-8 llf-d-flex llf-align-items-center">
+              <div class="nir-widget--field nir-widget--news--date-time">
+                July 28, 2026
+              </div>
+            </div>
+            <div class="llf-col-6 llf-col-sm-4 llf-d-flex llf-align-items-center llf-justify-content-end">
+              <div class="mt-auto text-end">
+                <a aria-label="Read more about IMC Rare Earths Ltd Announces Pricing of Initial Public Offering" class="btn-galaxy-plus-primary" href="/news-releases/news-release-details/imc-rare-earths-ltd-announces-pricing-initial-public-offering">Read More</a>
+              </div>
+            </div>
+          </div>
+        </body></html>
+        """
+        anns = parse_imc_html(html, comp)
+        # o link de cada noticia aparece 2x (manchete + Read More); nao deve duplicar
+        self.assertEqual(len(anns), 2)
+        self.assertEqual(anns[0].date, dt.date(2026, 7, 29))
+        self.assertEqual(anns[0].title,
+                         "IMC Rare Earths Begins Trading on NYSE American Under Ticker Symbol “IMC”")
+        self.assertEqual(anns[0].url,
+                         "https://ir.imcrareearths.com/news-releases/news-release-details/"
+                         "imc-rare-earths-begins-trading-nyse-american-under-ticker-symbol")
+        self.assertEqual(anns[1].date, dt.date(2026, 7, 28))
+        self.assertEqual(anns[1].title, "IMC Rare Earths Ltd Announces Pricing of Initial Public Offering")
+        self.assertEqual(anns[0].source, "IMC Rare Earths")
+        self.assertEqual(anns[0].exchange, "NYSE")
+
     def test_appia_rss_parsing(self):
         from sources.canada import CanadaSource
         comp = Company(ticker="API", exchange="CSE", name="Appia Rare Earths & Uranium",
@@ -319,8 +386,9 @@ class TestSourceRouting(unittest.TestCase):
         self.assertIsInstance(get_source("ASX"), A)
         self.assertIsInstance(get_source("TSX"), C)
         self.assertIsInstance(get_source("CSE"), C)
+        self.assertIsInstance(get_source("NYSE"), C)
         with self.assertRaises(ValueError):
-            get_source("NYSE")
+            get_source("NASDAQ")
 
 
 if __name__ == "__main__":

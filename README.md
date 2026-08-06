@@ -15,7 +15,7 @@ comunicado). O dashboard é **gerado automaticamente** e cada linha de notícia
 ree_monitor.py        -> coleta comunicados + calcula a % + gera docs/index.html
 sources/              -> uma fonte por bolsa (interface comum, plugável)
   asx.py              -> ASX: markitdigital -> API JSON legada -> RSS (3 fontes)
-  canada.py           -> TSX/CSE: feeds oficiais das empresas (RSS/site) + Yahoo
+  canada.py           -> TSX/CSE/NYSE American: feeds oficiais das empresas (RSS/site) + Yahoo
 prices.py             -> Yahoo Finance (yfinance): variação % close-to-close
 companies.json        -> empresas monitoradas (edite aqui)
 templates/            -> template do dashboard (mesmo visual do original)
@@ -75,12 +75,15 @@ bolsa). Exemplo:
   próprio site asx.com.au usa hoje —, depois a API JSON legada e, por fim, RSS por
   empresa). A primeira que responder vence. A partir do IP do GitHub Actions costuma
   funcionar; se uma fonte falhar, a coleta das demais empresas continua normalmente.
-- **TSX/CSE** usam os **comunicados oficiais de cada empresa** (só publicações da própria
-  empresa, sem ruído de setor): **EFR** (Energy Fuels) via scraping da página de press
-  releases em `investors.energyfuels.com/news-releases` (cobre NYSE:UUUU / TSX:EFR);
+- **TSX/CSE/NYSE American** usam os **comunicados oficiais de cada empresa** (só publicações
+  da própria empresa, sem ruído de setor): **EFR** (Energy Fuels) via scraping da página de
+  press releases em `investors.energyfuels.com/news-releases` (cobre NYSE:UUUU / TSX:EFR);
   **ARA** (Aclara) via scraping do site oficial `aclara-re.com/news`; **API** (Appia) via
-  RSS do site. A fonte de cada empresa fica em `companies.json` (campo `news`). Se uma
-  fonte não retornar, a empresa aparece sem itens (sem quebrar a página). O Yahoo Finance
-  segue disponível como tipo `yahoo` em `sources/canada.py` para quem precisar de um agregador.
+  RSS do site; **IMC** (IMC Rare Earths, NYSE American) via scraping da página de press
+  releases em `ir.imcrareearths.com/news-events/news-releases` (plataforma de IR
+  "Notified" — estrutura confirmada com dados reais).
+  A fonte de cada empresa fica em `companies.json` (campo `news`). Se uma fonte não
+  retornar, a empresa aparece sem itens (sem quebrar a página). O Yahoo Finance segue
+  disponível como tipo `yahoo` em `sources/canada.py` para quem precisar de um agregador.
 - O **botão "atualizar"** recarrega a página. Para forçar uma nova coleta sob demanda,
   use **Run workflow** em Actions (a coleta roda no servidor, não no navegador).

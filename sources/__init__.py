@@ -11,7 +11,10 @@ def get_source(exchange: str) -> Source:
     ex = exchange.upper()
     if ex == "ASX":
         return ASXSource()
-    if ex in ("TSX", "TSXV", "CSE"):
+    # CanadaSource despacha por companies.json[].news e nao e especifica do
+    # Canada: reaproveitada aqui para NYSE American em vez de criar uma classe
+    # nova so pra trocar o nome.
+    if ex in ("TSX", "TSXV", "CSE", "NYSE"):
         return CanadaSource()
     raise ValueError(f"Bolsa nao suportada: {exchange}")
 
