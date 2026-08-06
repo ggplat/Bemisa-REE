@@ -1,9 +1,11 @@
-"""Fonte de noticias/comunicados para TSX e CSE (Canada).
+"""Fonte de noticias/comunicados para TSX, CSE e NYSE American.
 
 A fonte de cada empresa e configurada em companies.json no campo 'news':
   - {"type": "energyfuels", "url": ".../news-releases"} -> press releases oficiais da
     Energy Fuels (scraping da pagina Q4 em investors.energyfuels.com; cobre UUUU/EFR)
   - {"type": "aclara", "url": "https://www.aclara-re.com/news"} -> scraping do site oficial
+  - {"type": "imc", "url": ".../news-releases"} -> press releases oficiais da IMC Rare
+    Earths (scraping da pagina Q4 em ir.imcrareearths.com; cobre NYSE American: IMC)
   - {"type": "rss"/"appia", "url": "...", "source": "..."} -> feed RSS do site da empresa
   - {"type": "yahoo", "symbol": "UUUU"} -> feed agregado do Yahoo Finance (yfinance)
 
@@ -37,7 +39,7 @@ _TYPE_LABEL = {
 
 
 class CanadaSource(Source):
-    """Cobre TSX e CSE; despacha conforme a config 'news' da empresa."""
+    """Cobre TSX, CSE e NYSE American; despacha conforme a config 'news' da empresa."""
 
     exchange = "CA"
 
@@ -55,6 +57,10 @@ class CanadaSource(Source):
                 anns = self._fetch_html(
                     company, cfg.get("url") or "https://investors.energyfuels.com/news-releases",
                     parse_energyfuels_html)
+            elif ntype == "imc":
+                anns = self._fetch_html(
+                    company, cfg.get("url") or "https://ir.imcrareearths.com/news-releases",
+                    parse_imc_html)
             else:  # yahoo
                 anns = self._fetch_yahoo(company, cfg.get("symbol") or company.yf_symbol)
         except Exception as exc:  # noqa: BLE001
@@ -235,5 +241,53 @@ def parse_energyfuels_html(html: str, company: Company) -> list[Announcement]:
             ticker=company.ticker, exchange=company.exchange, company_name=company.name,
             date=date, title=title, url=url, price_sensitive=False,
             doc_type="Comunicado", source="Energy Fuels",
+        ))
+    return out
+
+
+# link de release da IMC: ir.imcrareearths.com/AAAA-MM-DD-titulo
+#
+# NOTA: a estrutura real de ir.imcrareearths.com nao pode ser confirmada no
+# ambiente onde este parser foi escrito (dominio bloqueado por protecao anti-bot).
+# A aposta e que a IMC usa a mesma plataforma de IR (Q4) e o mesmo padrao de URL
+# com data no slug que a Energy Fuels ja usa (parse_energyfuels_html acima) - por
+# isso o regex e a estrutura sao identicos. Precisa validar no primeiro run real
+# do workflow: se o log mostrar "IMC: sem noticias (fonte 'imc')", a URL/regex
+# precisam de ajuste (inspecionar ir.imcrareearths.com/news-releases de verdade).
+_IMC_REL_RE = re.compile(r"/(\d{4})-(\d{2})-(\d{2})-([^?#/]+)")
+
+
+def parse_imc_html(html: str, company: Company) -> list[Announcement]:
+    """Extrai os press releases oficiais da IMC Rare Earths (ir.imcrareearths.com).
+
+    Assume o mesmo padrao Q4 (link '/AAAA-MM-DD-<titulo>') da Energy Fuels.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    out: list[Announcement] = []
+    seen: set[str] = set()
+    for a in soup.find_all("a", href=True):
+        href = a["href"].strip()
+        m = _IMC_REL_RE.search(href)
+        if not m:
+            continue
+        try:
+            date = dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            continue
+        key = href.split("#")[0]
+        if key in seen:
+            continue
+        url = href if href.startswith("http") else "https://ir.imcrareearths.com" + (
+            href if href.startswith("/") else "/" + href)
+        title = a.get_text(" ", strip=True)
+        if len(title) < 6:  # link sem manchete: deriva do slug da URL
+            title = m.group(4).replace("-", " ").strip()
+        if not title:
+            continue
+        seen.add(key)
+        out.append(Announcement(
+            ticker=company.ticker, exchange=company.exchange, company_name=company.name,
+            date=date, title=title, url=url, price_sensitive=False,
+            doc_type="Comunicado", source="IMC Rare Earths",
         ))
     return out

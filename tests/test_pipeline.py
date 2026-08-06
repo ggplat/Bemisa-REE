@@ -294,6 +294,37 @@ class TestCanada(unittest.TestCase):
         self.assertEqual(anns[0].source, "Energy Fuels")
         self.assertEqual(anns[0].exchange, "TSX")
 
+    def test_imc_html_parsing(self):
+        from sources.canada import parse_imc_html
+        comp = Company(ticker="IMC", exchange="NYSE", name="IMC Rare Earths",
+                       yf_symbol="IMC", company_url="https://www.nyse.com/quote/XASE:IMC",
+                       news={"type": "imc"})
+        # mesmo padrao Q4 assumido para a IMC: link '/AAAA-MM-DD-<titulo>'
+        html = """
+        <html><body>
+          <div class="wd_newsfeed_releases">
+            <div class="wd_item">
+              <a href="https://ir.imcrareearths.com/2026-07-29-IMC-Rare-Earths-Begins-Trading-on-NYSE-American">
+                 IMC Rare Earths Begins Trading on NYSE American</a>
+            </div>
+            <div class="wd_item">
+              <a href="https://ir.imcrareearths.com/2026-07-30-IMC-Rare-Earths-Announces-Closing-of-IPO#assets_1-2">
+                 IMC Rare Earths Announces Closing of IPO</a>
+            </div>
+          </div>
+        </body></html>
+        """
+        anns = parse_imc_html(html, comp)
+        self.assertEqual(len(anns), 2)
+        self.assertEqual(anns[0].date, dt.date(2026, 7, 29))
+        self.assertEqual(anns[0].title, "IMC Rare Earths Begins Trading on NYSE American")
+        self.assertEqual(anns[1].date, dt.date(2026, 7, 30))
+        # o fragmento #assets... nao deve gerar duplicata
+        self.assertEqual(anns[1].url,
+                         "https://ir.imcrareearths.com/2026-07-30-IMC-Rare-Earths-Announces-Closing-of-IPO#assets_1-2")
+        self.assertEqual(anns[0].source, "IMC Rare Earths")
+        self.assertEqual(anns[0].exchange, "NYSE")
+
     def test_appia_rss_parsing(self):
         from sources.canada import CanadaSource
         comp = Company(ticker="API", exchange="CSE", name="Appia Rare Earths & Uranium",
@@ -319,8 +350,9 @@ class TestSourceRouting(unittest.TestCase):
         self.assertIsInstance(get_source("ASX"), A)
         self.assertIsInstance(get_source("TSX"), C)
         self.assertIsInstance(get_source("CSE"), C)
+        self.assertIsInstance(get_source("NYSE"), C)
         with self.assertRaises(ValueError):
-            get_source("NYSE")
+            get_source("NASDAQ")
 
 
 if __name__ == "__main__":
