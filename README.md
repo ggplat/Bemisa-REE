@@ -80,8 +80,8 @@ bolsa). Exemplo:
   press releases em `investors.energyfuels.com/news-releases` (cobre NYSE:UUUU / TSX:EFR);
   **ARA** (Aclara) via scraping do site oficial `aclara-re.com/news`; **API** (Appia) via
   RSS do site; **IMC** (IMC Rare Earths, NYSE American) via scraping da página de press
-  releases em `ir.imcrareearths.com/news-releases` (mesmo padrão Q4 usado pela Energy
-  Fuels — ainda não validado com dados reais, ver aviso no código de `sources/canada.py`).
+  releases em `ir.imcrareearths.com/news-events/news-releases` (plataforma de IR
+  "Notified" — estrutura confirmada com dados reais).
   A fonte de cada empresa fica em `companies.json` (campo `news`). Se uma fonte não
   retornar, a empresa aparece sem itens (sem quebrar a página). O Yahoo Finance segue
   disponível como tipo `yahoo` em `sources/canada.py` para quem precisar de um agregador.

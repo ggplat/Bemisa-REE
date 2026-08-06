@@ -39,7 +39,7 @@
      "news": {"type": "appia", "url": "https://appiareu.com/feed/"},
      "projects": [{"name": "PCH", "tier": "principal"}]},
     {"ticker": "IMC", "exchange": "NYSE", "name": "IMC Rare Earths", "yf_symbol": "IMC", "company_url": "https://www.nyse.com/quote/XASE:IMC",
-     "news": {"type": "imc", "url": "https://ir.imcrareearths.com/news-releases"},
+     "news": {"type": "imc", "url": "https://ir.imcrareearths.com/news-events/news-releases"},
      "projects": [{"name": "Itarantim", "tier": "principal"}]}
   ]
 }

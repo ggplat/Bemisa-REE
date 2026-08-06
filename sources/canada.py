@@ -4,8 +4,8 @@ A fonte de cada empresa e configurada em companies.json no campo 'news':
   - {"type": "energyfuels", "url": ".../news-releases"} -> press releases oficiais da
     Energy Fuels (scraping da pagina Q4 em investors.energyfuels.com; cobre UUUU/EFR)
   - {"type": "aclara", "url": "https://www.aclara-re.com/news"} -> scraping do site oficial
-  - {"type": "imc", "url": ".../news-releases"} -> press releases oficiais da IMC Rare
-    Earths (scraping da pagina Q4 em ir.imcrareearths.com; cobre NYSE American: IMC)
+  - {"type": "imc", "url": ".../news-events/news-releases"} -> press releases oficiais da
+    IMC Rare Earths (scraping da pagina de IR em ir.imcrareearths.com; cobre NYSE American: IMC)
   - {"type": "rss"/"appia", "url": "...", "source": "..."} -> feed RSS do site da empresa
   - {"type": "yahoo", "symbol": "UUUU"} -> feed agregado do Yahoo Finance (yfinance)
 
@@ -59,7 +59,7 @@ class CanadaSource(Source):
                     parse_energyfuels_html)
             elif ntype == "imc":
                 anns = self._fetch_html(
-                    company, cfg.get("url") or "https://ir.imcrareearths.com/news-releases",
+                    company, cfg.get("url") or "https://ir.imcrareearths.com/news-events/news-releases",
                     parse_imc_html)
             else:  # yahoo
                 anns = self._fetch_yahoo(company, cfg.get("symbol") or company.yf_symbol)
@@ -245,46 +245,53 @@ def parse_energyfuels_html(html: str, company: Company) -> list[Announcement]:
     return out
 
 
-# link de release da IMC: ir.imcrareearths.com/AAAA-MM-DD-titulo
-#
-# NOTA: a estrutura real de ir.imcrareearths.com nao pode ser confirmada no
-# ambiente onde este parser foi escrito (dominio bloqueado por protecao anti-bot).
-# A aposta e que a IMC usa a mesma plataforma de IR (Q4) e o mesmo padrao de URL
-# com data no slug que a Energy Fuels ja usa (parse_energyfuels_html acima) - por
-# isso o regex e a estrutura sao identicos. Precisa validar no primeiro run real
-# do workflow: se o log mostrar "IMC: sem noticias (fonte 'imc')", a URL/regex
-# precisam de ajuste (inspecionar ir.imcrareearths.com/news-releases de verdade).
-_IMC_REL_RE = re.compile(r"/(\d{4})-(\d{2})-(\d{2})-([^?#/]+)")
+# pagina de release da IMC: plataforma de IR "Notified" (classes nir-widget--*).
+# Cada item lista o link duas vezes (manchete + botao "Read More"); o botao tem
+# aria-label="Read more about <titulo>" e fica no mesmo bloco ("nir-widget--field--group")
+# que a data ("nir-widget--news--date-time", formato "Mes DD, AAAA"). Usamos o
+# botao "Read More" como ancora unica (evita contar cada noticia 2x) e buscamos a
+# data no bloco-pai dele. Estrutura confirmada com HTML real (nao um chute) em
+# ir.imcrareearths.com/news-events/news-releases.
+_IMC_READ_MORE_PREFIX = "read more about "
+
+
+def _parse_imc_date(text: str) -> Optional[dt.date]:
+    text = (text or "").strip()
+    try:
+        return dt.datetime.strptime(text, "%B %d, %Y").date()
+    except ValueError:
+        return None
 
 
 def parse_imc_html(html: str, company: Company) -> list[Announcement]:
-    """Extrai os press releases oficiais da IMC Rare Earths (ir.imcrareearths.com).
-
-    Assume o mesmo padrao Q4 (link '/AAAA-MM-DD-<titulo>') da Energy Fuels.
-    """
+    """Extrai os press releases oficiais da IMC Rare Earths (ir.imcrareearths.com)."""
     soup = BeautifulSoup(html, "html.parser")
     out: list[Announcement] = []
     seen: set[str] = set()
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
-        m = _IMC_REL_RE.search(href)
-        if not m:
+        if "news-release-details" not in href:
             continue
-        try:
-            date = dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        except ValueError:
+        aria = (a.get("aria-label") or "").strip()
+        if not aria.lower().startswith(_IMC_READ_MORE_PREFIX):
             continue
+        title = aria[len(_IMC_READ_MORE_PREFIX):].strip()
         key = href.split("#")[0]
-        if key in seen:
+        if not title or key in seen:
             continue
+
+        date = None
+        group = a.find_parent(class_="nir-widget--field--group")
+        if group:
+            date_el = group.find(class_="nir-widget--news--date-time")
+            if date_el:
+                date = _parse_imc_date(date_el.get_text(" ", strip=True))
+        if date is None:
+            continue
+
+        seen.add(key)
         url = href if href.startswith("http") else "https://ir.imcrareearths.com" + (
             href if href.startswith("/") else "/" + href)
-        title = a.get_text(" ", strip=True)
-        if len(title) < 6:  # link sem manchete: deriva do slug da URL
-            title = m.group(4).replace("-", " ").strip()
-        if not title:
-            continue
-        seen.add(key)
         out.append(Announcement(
             ticker=company.ticker, exchange=company.exchange, company_name=company.name,
             date=date, title=title, url=url, price_sensitive=False,
