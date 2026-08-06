@@ -1,0 +1,46 @@
+name: "[TEMP] Testar fonte de noticias da IMC"
+
+# Workflow descartavel: so verifica se sources.canada.CanadaSource().fetch()
+# encontra comunicados reais da IMC via ir.imcrareearths.com, usando o codigo
+# do PR #1 (branch claude/ree-comunicados-dashboard-publish-s4644d). Nao commita
+# nada, nao publica no GitHub Pages. Deve ser removido apos o teste.
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do codigo do PR #1 (com a IMC)
+        uses: actions/checkout@v4
+        with:
+          ref: claude/ree-comunicados-dashboard-publish-s4644d
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Buscar noticias reais da IMC (sem publicar nada)
+        run: |
+          python -c "
+          import json
+          from sources import get_source
+          from sources.base import Company
+
+          with open('companies.json', encoding='utf-8') as fh:
+              data = json.load(fh)
+          imc_cfg = next(c for c in data['companies'] if c['ticker'] == 'IMC')
+          company = Company(**imc_cfg)
+
+          source = get_source(company.exchange)
+          print(f'Fonte usada: {type(source).__name__}')
+          anns = source.fetch(company)
+          print(f'RESULTADO: {len(anns)} comunicado(s) encontrado(s) para IMC')
+          for a in anns[:10]:
+              print(f'  - {a.date} | {a.title} | {a.url}')
+          "
