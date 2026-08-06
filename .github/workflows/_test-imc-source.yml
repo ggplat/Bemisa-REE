@@ -25,22 +25,55 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-      - name: Buscar noticias reais da IMC (sem publicar nada)
+      - name: Descobrir a URL certa da pagina de noticias da IMC (sem publicar nada)
         run: |
-          python -c "
-          import json
-          from sources import get_source
-          from sources.base import Company
+          python3 << 'PYEOF'
+          from sources import http_util
+          from bs4 import BeautifulSoup
 
-          with open('companies.json', encoding='utf-8') as fh:
-              data = json.load(fh)
-          imc_cfg = next(c for c in data['companies'] if c['ticker'] == 'IMC')
-          company = Company(**imc_cfg)
+          candidates = [
+              "https://ir.imcrareearths.com/",
+              "https://ir.imcrareearths.com/news-releases",
+              "https://ir.imcrareearths.com/news",
+              "https://ir.imcrareearths.com/press-releases",
+              "https://ir.imcrareearths.com/news-events/press-releases",
+              "https://ir.imcrareearths.com/news-events",
+              "https://imcrareearths.com/",
+              "https://imcrareearths.com/news/",
+              "https://imcrareearths.com/press/",
+              "https://imcrareearths.com/media/",
+          ]
+          for url in candidates:
+              resp = http_util.get(url, retries=1)
+              print(f"{url} -> {'HTTP 200' if resp else 'falhou/nao-200'}")
 
-          source = get_source(company.exchange)
-          print(f'Fonte usada: {type(source).__name__}')
-          anns = source.fetch(company)
-          print(f'RESULTADO: {len(anns)} comunicado(s) encontrado(s) para IMC')
-          for a in anns[:10]:
-              print(f'  - {a.date} | {a.title} | {a.url}')
-          "
+          print()
+          print("=== Links de navegacao da home ir.imcrareearths.com (se 200) ===")
+          resp = http_util.get("https://ir.imcrareearths.com/", retries=1)
+          if resp:
+              soup = BeautifulSoup(resp.text, "html.parser")
+              seen = set()
+              for a in soup.find_all("a", href=True):
+                  href = a["href"].strip()
+                  text = a.get_text(" ", strip=True).lower()
+                  if href in seen:
+                      continue
+                  if any(k in href.lower() or k in text for k in ("news", "press", "media", "release")):
+                      seen.add(href)
+                      print(f"  {href}  ({a.get_text(' ', strip=True)!r})")
+
+          print()
+          print("=== Links de navegacao da home imcrareearths.com (se 200) ===")
+          resp2 = http_util.get("https://imcrareearths.com/", retries=1)
+          if resp2:
+              soup2 = BeautifulSoup(resp2.text, "html.parser")
+              seen2 = set()
+              for a in soup2.find_all("a", href=True):
+                  href = a["href"].strip()
+                  text = a.get_text(" ", strip=True).lower()
+                  if href in seen2:
+                      continue
+                  if any(k in href.lower() or k in text for k in ("news", "press", "media", "release")):
+                      seen2.add(href)
+                      print(f"  {href}  ({a.get_text(' ', strip=True)!r})")
+          PYEOF
