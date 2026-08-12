@@ -1,10 +1,14 @@
 name: Atualizar Dashboard MCap REE
 
-# Roda todo dia útil após o fechamento de ASX (06:00 UTC) e TSX (21:00 UTC)
-# e pode ser disparado manualmente em Actions → "Atualizar Dashboard MCap REE" → Run workflow.
+# APOSENTADO em 2026-08-12. Este dashboard (tema escuro, DM Sans) cobre as
+# mesmas 5 empresas do Dashboard_REE_v6_Q2.html, que agora é atualizado pelo
+# workflow "Atualizar Dashboard REE v6". Manter os dois rodando criaria duas
+# fontes de verdade divergentes sobre os mesmos ativos.
+#
+# O agendamento foi desligado; a execução manual continua disponível para quem
+# precisar regenerar a versão antiga. `mcap_dashboard.py` fica no repositório
+# como referência histórica dos dados hardcoded.
 on:
-  schedule:
-    - cron: "0 22 * * 1-5"   # 22:00 UTC, seg-sex
   workflow_dispatch:
 
 permissions:

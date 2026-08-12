@@ -5,3 +5,9 @@ __pycache__/
 venv/
 *.log
 .claude/
+node_modules/
+package-lock.json
+
+# Backups datados do dashboard: gerados a cada atualizacao e ja cobertos pelo
+# historico do git. Mantidos so localmente para rollback rapido.
+Dashboard_REE_v6_Q2_backup_*.html
