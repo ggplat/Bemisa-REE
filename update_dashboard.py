@@ -138,17 +138,35 @@ def _fmt(value: float, decimals: int) -> str:
     return f"{value:.{decimals}f}"
 
 
+def _is_writable(js: str, var: str, month: str) -> bool:
+    """Um mês só pode ser escrito se for **novo** (ainda não existe no
+    dashboard) ou se for o **mês corrente** (ainda em aberto, esperado se
+    mover conforme mais pregões do mês entram). Qualquer outro mês que já
+    exista no dashboard é permanentemente protegido — nunca é recalculado.
+
+    Sem essa regra, a primeira execução do pipeline (sem histórico próprio
+    ainda) recalculava meses já fechados e manualmente curados a partir de
+    poucos pregões disponíveis na janela de busca, sobrescrevendo o valor
+    original com uma média não representativa do mês inteiro.
+    """
+    existing = R.read_js_dict(js, var)
+    return month not in existing or month == R.today_month_key()
+
+
 def apply_frame(frame_html: str, spec: R.FrameSpec, state: dict) -> tuple[str, dict]:
     """Aplica preço, câmbio e volume de um ticker. Devolve (html, resumo)."""
     node = state["tickers"].get(spec.ticker)
     if not node:
         return frame_html, {"skipped": "sem dados no market_data.json"}
 
-    changes = {"price": {}, "fx": {}, "vol_days": 0, "forward_filled": {}}
+    changes = {"price": {}, "fx": {}, "vol_days": 0, "forward_filled": {}, "protected": []}
     js = frame_html
 
     # ── preço mensal ──
     for mk, info in sorted(node.get("monthly", {}).items(), key=lambda kv: R.month_to_int(kv[0])):
+        if not _is_writable(js, spec.price_var, mk):
+            changes["protected"].append(mk)
+            continue
         value = _fmt(info["mean"], PRICE_DECIMALS)
         js, action = R.upsert_dict_entry(js, spec.price_var, mk, value)
         if action != "unchanged":
@@ -157,6 +175,10 @@ def apply_frame(frame_html: str, spec: R.FrameSpec, state: dict) -> tuple[str, d
     # ── câmbio mensal ──
     fx_monthly = state["fx"].get(spec.fx_pair, {}).get("monthly", {})
     for mk, info in sorted(fx_monthly.items(), key=lambda kv: R.month_to_int(kv[0])):
+        if not _is_writable(js, spec.fx_var, mk):
+            if mk not in changes["protected"]:
+                changes["protected"].append(mk)
+            continue
         value = _fmt(info["mean"], FX_DECIMALS)
         js, action = R.upsert_dict_entry(js, spec.fx_var, mk, value)
         if action != "unchanged":
@@ -242,9 +264,11 @@ def run(args) -> int:
         if ch.get("skipped"):
             log.info("%s: %s", ticker, ch["skipped"])
             continue
-        log.info("%s: preço %s | câmbio %s | volume +%d dia(s)%s",
+        log.info("%s: preço %s | câmbio %s | volume +%d dia(s)%s%s",
                  ticker, ch["price"] or "—", ch["fx"] or "—", ch["vol_days"],
-                 f" | forward-fill {ch['forward_filled']}" if ch["forward_filled"] else "")
+                 f" | forward-fill {ch['forward_filled']}" if ch["forward_filled"] else "",
+                 f" | {len(ch['protected'])} mês(es) protegido(s) (já fechado no dashboard)"
+                 if ch["protected"] else "")
 
     if args.dry_run:
         log.info("--dry-run: nada gravado (%d frames mudariam, %d bytes de diferença)",
