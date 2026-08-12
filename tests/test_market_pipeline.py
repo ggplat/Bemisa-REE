@@ -13,6 +13,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -92,6 +93,34 @@ class TestSrcdocRoundTrip(unittest.TestCase):
         out = R.replace_frames(self.doc, {0: js})
         for idx in (1, 2, 3, 4):
             self.assertEqual(R.extract_frames(out)[idx], frames[idx])
+
+    def test_volume_chart_x_domain_end_is_derived_from_vol_data(self):
+        # Regressão: o frame do BRE tinha o fim do eixo X do gráfico de volume
+        # fixo em "2026-06-30" (`d3.timeParse(...)("2026-06-30")`) em vez de
+        # derivado da última data de volData. Isso é invisível hoje — só
+        # quebra (barras saindo da tela) no primeiro dia em que volData
+        # ganhar um ponto além dessa data fixa. O início do eixo (parseStart)
+        # pode continuar fixo — é assim que o gráfico de volume alinha seu
+        # começo com o de main/shares/ratio quando volData começa depois do
+        # preço (caso do BRE); só o FIM precisa ser dinâmico.
+        frames = R.extract_frames(self.doc)
+        for spec in R.FRAMES:
+            js = frames[spec.frame]
+            m = re.search(r"const x = d3\.scaleTime\(\)\.domain\((.*?)\)\.range", js)
+            self.assertIsNotNone(m, f"{spec.ticker}: escala de tempo do volume não encontrada")
+            domain_expr = m.group(1)
+            # O fim pode vir inline (d3.extent/d3.max) ou por uma variável
+            # (ex.: "parseEnd") — nesse caso resolve a definição dela.
+            end_ref = domain_expr.split(",")[-1].strip().strip("[]() ")
+            end_def = domain_expr
+            if re.fullmatch(r"[A-Za-z_$][\w$]*", end_ref):
+                defn = re.search(r"const\s+" + re.escape(end_ref) + r"\s*=\s*(.*?);", js)
+                self.assertIsNotNone(defn, f"{spec.ticker}: '{end_ref}' não definido")
+                end_def = defn.group(1)
+            self.assertTrue(
+                "d3.extent(parsed" in end_def or "d3.max(parsed" in end_def,
+                f"{spec.ticker}: fim do eixo X do volume não deriva de volData: "
+                f"domínio={domain_expr!r} definição='{end_def}'")
 
 
 class TestDashboardInvariants(unittest.TestCase):

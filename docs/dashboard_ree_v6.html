@@ -1595,7 +1595,7 @@ function drawVolume() {
   const svg = d3.select(&quot;#chart-volume&quot;).attr(&quot;width&quot;,W).attr(&quot;height&quot;,H);
   const g = svg.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(${mg.left},${mg.top})`);
   const parseStart = d3.timeParse(&quot;%Y-%m-%d&quot;)(&quot;2021-12-01&quot;);
-  const parseEnd   = d3.timeParse(&quot;%Y-%m-%d&quot;)(&quot;2026-06-30&quot;);
+  const parseEnd   = d3.max(parsed, d =&gt; d.date);
   const x = d3.scaleTime().domain([parseStart, parseEnd]).range([0,w]);
   const maxVol = d3.max(parsed,d=&gt;d.vol);
   const y = d3.scaleLinear().domain([0,maxVol*1.15]).range([h,0]);
