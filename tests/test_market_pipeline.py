@@ -133,6 +133,43 @@ class TestSrcdocRoundTrip(unittest.TestCase):
                 f"domínio={domain_expr!r} definição='{end_def}'")
 
 
+class TestAxisTickLabels(unittest.TestCase):
+    """O eixo X só mostra um rótulo por trimestre — nunca força o mês mais
+    recente a aparecer se ele não cair nesse ritmo. Isso não afeta os
+    dados plotados (a série inteira continua desenhada); só o texto do
+    eixo pode omitir o mês corrente.
+    """
+
+    def setUp(self):
+        with open(DASHBOARD, encoding="utf-8") as fh:
+            self.doc = fh.read()
+        self.frames = R.extract_frames(self.doc)
+
+    def test_categorical_charts_never_force_the_last_month(self):
+        forced = "monthOrder[monthOrder.length-1]"
+        for spec in R.FRAMES:
+            self.assertNotIn(forced, self.frames[spec.frame],
+                             f"{spec.ticker}: ainda força o último mês no eixo X")
+
+    def test_volume_chart_never_forces_the_domain_end(self):
+        for spec in R.FRAMES:
+            js = self.frames[spec.frame]
+            m = re.search(r"tickValues\((.*?)\)\.tickSize\(4\)\.tickFormat", js)
+            self.assertIsNotNone(m, f"{spec.ticker}: tickValues do volume não encontrado")
+            self.assertNotIn("auto.push(end)", m.group(1),
+                             f"{spec.ticker}: ainda força a data final no eixo X do volume")
+
+    def test_dataset_is_never_filtered_by_the_label_cadence(self):
+        # A correção é só de exibição: `data` (o que os 3 gráficos
+        # categóricos desenham) tem de continuar mapeando o `monthOrder`
+        # inteiro, nunca uma versão já filtrada a cada 3 meses — senão o
+        # ritmo trimestral do rótulo vazaria para o dado plotado.
+        for spec in R.FRAMES:
+            js = self.frames[spec.frame]
+            self.assertIn("const data = monthOrder.map(m =>", js,
+                         f"{spec.ticker}: 'data' não mapeia mais o monthOrder completo")
+
+
 class TestDashboardInvariants(unittest.TestCase):
     """Sem estas condições o JS do frame produz NaN e some com a série."""
 
