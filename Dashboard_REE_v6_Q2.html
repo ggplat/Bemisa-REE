@@ -618,7 +618,7 @@ function drawMain() {
 
   // Axes
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -741,7 +741,7 @@ function drawShares() {
   });
 
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -816,7 +816,7 @@ function drawRatio() {
     .attr(&quot;font-family&quot;,&quot;Carlito,sans-serif&quot;).text(`${lrd.ratio.toFixed(1).replace(&quot;.&quot;,&quot;,&quot;)}× atual`);
 
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -871,7 +871,7 @@ function drawVolume() {
     .attr(&quot;d&quot;,d3.line().x(d=&gt;x(d.date)).y(d=&gt;y(d.ma)).curve(d3.curveCatmullRom));
   const fmtVol=v=&gt;v&gt;=1e6?`${(v/1e6).toFixed(2)}M`:v&gt;=1e3?`${(v/1e3).toFixed(0)}K`:`${v.toFixed(0)}`;
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues((()=&gt;{const auto=x.ticks(d3.timeMonth.every(3));const end=x.domain()[1];if(!auto.length||auto[auto.length-1].getTime()!==end.getTime())auto.push(end);return auto;})()).tickSize(4).tickFormat(d=&gt;{const ms=[&quot;jan&quot;,&quot;fev&quot;,&quot;mar&quot;,&quot;abr&quot;,&quot;mai&quot;,&quot;jun&quot;,&quot;jul&quot;,&quot;ago&quot;,&quot;set&quot;,&quot;out&quot;,&quot;nov&quot;,&quot;dez&quot;];return ms[d.getMonth()]+&quot;/&quot;+(d.getFullYear()%100).toString().padStart(2,&quot;0&quot;);})
+    d3.axisBottom(x).tickValues(x.ticks(d3.timeMonth.every(3))).tickSize(4).tickFormat(d=&gt;{const ms=[&quot;jan&quot;,&quot;fev&quot;,&quot;mar&quot;,&quot;abr&quot;,&quot;mai&quot;,&quot;jun&quot;,&quot;jul&quot;,&quot;ago&quot;,&quot;set&quot;,&quot;out&quot;,&quot;nov&quot;,&quot;dez&quot;];return ms[d.getMonth()]+&quot;/&quot;+(d.getFullYear()%100).toString().padStart(2,&quot;0&quot;);})
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -1365,7 +1365,7 @@ function drawMain() {
 
   // Axes
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -1500,7 +1500,7 @@ function drawShares() {
 
   // X axis
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -1574,7 +1574,7 @@ function drawRatio() {
     .attr(&quot;font-family&quot;,&quot;Carlito,sans-serif&quot;).text(`${lrd.ratio.toFixed(1).replace(&quot;.&quot;,&quot;,&quot;)}× atual`);
 
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -1627,7 +1627,7 @@ function drawVolume() {
     .attr(&quot;d&quot;,d3.line().x(d=&gt;x(d.date)).y(d=&gt;y(d.ma)).curve(d3.curveCatmullRom));
   const fmtVol=v=&gt;v&gt;=1e6?`${(v/1e6).toFixed(2)}M`:v&gt;=1e3?`${(v/1e3).toFixed(0)}K`:`${v.toFixed(0)}`;
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues((()=&gt;{const auto=x.ticks(d3.timeMonth.every(3));const end=x.domain()[1];if(!auto.length||auto[auto.length-1].getTime()!==end.getTime())auto.push(end);return auto;})()).tickSize(4).tickFormat(d=&gt;{const ms=[&quot;jan&quot;,&quot;fev&quot;,&quot;mar&quot;,&quot;abr&quot;,&quot;mai&quot;,&quot;jun&quot;,&quot;jul&quot;,&quot;ago&quot;,&quot;set&quot;,&quot;out&quot;,&quot;nov&quot;,&quot;dez&quot;];return ms[d.getMonth()]+&quot;/&quot;+(d.getFullYear()%100).toString().padStart(2,&quot;0&quot;);})
+    d3.axisBottom(x).tickValues(x.ticks(d3.timeMonth.every(3))).tickSize(4).tickFormat(d=&gt;{const ms=[&quot;jan&quot;,&quot;fev&quot;,&quot;mar&quot;,&quot;abr&quot;,&quot;mai&quot;,&quot;jun&quot;,&quot;jul&quot;,&quot;ago&quot;,&quot;set&quot;,&quot;out&quot;,&quot;nov&quot;,&quot;dez&quot;];return ms[d.getMonth()]+&quot;/&quot;+(d.getFullYear()%100).toString().padStart(2,&quot;0&quot;);})
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -2176,7 +2176,7 @@ function drawMain() {
 
   // Axes
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -2306,7 +2306,7 @@ function drawShares() {
 
   // Axes
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -2381,7 +2381,7 @@ function drawRatio() {
 
   // Axes
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -2436,7 +2436,7 @@ function drawVolume() {
     .attr(&quot;d&quot;,d3.line().x(d=&gt;x(d.date)).y(d=&gt;y(d.ma)).curve(d3.curveCatmullRom));
   const fmtVol=v=&gt;v&gt;=1e6?`${(v/1e6).toFixed(2)}M`:v&gt;=1e3?`${(v/1e3).toFixed(0)}K`:`${v.toFixed(0)}`;
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues((()=&gt;{const auto=x.ticks(d3.timeMonth.every(3));const end=x.domain()[1];if(!auto.length||auto[auto.length-1].getTime()!==end.getTime())auto.push(end);return auto;})()).tickSize(4).tickFormat(d=&gt;{const ms=[&quot;jan&quot;,&quot;fev&quot;,&quot;mar&quot;,&quot;abr&quot;,&quot;mai&quot;,&quot;jun&quot;,&quot;jul&quot;,&quot;ago&quot;,&quot;set&quot;,&quot;out&quot;,&quot;nov&quot;,&quot;dez&quot;];return ms[d.getMonth()]+&quot;/&quot;+(d.getFullYear()%100).toString().padStart(2,&quot;0&quot;);})
+    d3.axisBottom(x).tickValues(x.ticks(d3.timeMonth.every(3))).tickSize(4).tickFormat(d=&gt;{const ms=[&quot;jan&quot;,&quot;fev&quot;,&quot;mar&quot;,&quot;abr&quot;,&quot;mai&quot;,&quot;jun&quot;,&quot;jul&quot;,&quot;ago&quot;,&quot;set&quot;,&quot;out&quot;,&quot;nov&quot;,&quot;dez&quot;];return ms[d.getMonth()]+&quot;/&quot;+(d.getFullYear()%100).toString().padStart(2,&quot;0&quot;);})
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -2969,7 +2969,7 @@ function drawMain() {
 
   // Axes
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -3088,7 +3088,7 @@ function drawShares() {
   });
 
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -3157,7 +3157,7 @@ function drawRatio() {
     .attr(&quot;font-family&quot;,&quot;Carlito,sans-serif&quot;).text(`${lrd.ratio.toFixed(1).replace(&quot;.&quot;,&quot;,&quot;)}× atual`);
 
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -3211,7 +3211,7 @@ function drawVolume() {
     .attr(&quot;d&quot;,d3.line().x(d=&gt;x(d.date)).y(d=&gt;y(d.ma)).curve(d3.curveCatmullRom));
   const fmtVol=v=&gt;v&gt;=1e6?`${(v/1e6).toFixed(2)}M`:v&gt;=1e3?`${(v/1e3).toFixed(0)}K`:`${v.toFixed(0)}`;
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues((()=&gt;{const auto=x.ticks(d3.timeMonth.every(3));const end=x.domain()[1];if(!auto.length||auto[auto.length-1].getTime()!==end.getTime())auto.push(end);return auto;})()).tickSize(4).tickFormat(d=&gt;{const ms=[&quot;jan&quot;,&quot;fev&quot;,&quot;mar&quot;,&quot;abr&quot;,&quot;mai&quot;,&quot;jun&quot;,&quot;jul&quot;,&quot;ago&quot;,&quot;set&quot;,&quot;out&quot;,&quot;nov&quot;,&quot;dez&quot;];return ms[d.getMonth()]+&quot;/&quot;+(d.getFullYear()%100).toString().padStart(2,&quot;0&quot;);})
+    d3.axisBottom(x).tickValues(x.ticks(d3.timeMonth.every(3))).tickSize(4).tickFormat(d=&gt;{const ms=[&quot;jan&quot;,&quot;fev&quot;,&quot;mar&quot;,&quot;abr&quot;,&quot;mai&quot;,&quot;jun&quot;,&quot;jul&quot;,&quot;ago&quot;,&quot;set&quot;,&quot;out&quot;,&quot;nov&quot;,&quot;dez&quot;];return ms[d.getMonth()]+&quot;/&quot;+(d.getFullYear()%100).toString().padStart(2,&quot;0&quot;);})
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -3724,7 +3724,7 @@ function drawMain() {
 
   // Axes
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -3842,7 +3842,7 @@ function drawShares() {
   });
 
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -3911,7 +3911,7 @@ function drawRatio() {
     .attr(&quot;font-family&quot;,&quot;Carlito,sans-serif&quot;).text(`${lrd.ratio.toFixed(1).replace(&quot;.&quot;,&quot;,&quot;)}× atual`);
 
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues(Array.from(new Set([...monthOrder.filter((_,i)=&gt;i%3===0), monthOrder[monthOrder.length-1]]))).tickSize(4)
+    d3.axisBottom(x).tickValues(monthOrder.filter((_,i)=&gt;i%3===0)).tickSize(4)
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
@@ -3965,7 +3965,7 @@ function drawVolume() {
     .attr(&quot;d&quot;,d3.line().x(d=&gt;x(d.date)).y(d=&gt;y(d.ma)).curve(d3.curveCatmullRom));
   const fmtVol=v=&gt;v&gt;=1e6?`${(v/1e6).toFixed(2)}M`:v&gt;=1e3?`${(v/1e3).toFixed(0)}K`:`${v.toFixed(0)}`;
   g.append(&quot;g&quot;).attr(&quot;transform&quot;,`translate(0,${h})`).call(
-    d3.axisBottom(x).tickValues((()=&gt;{const auto=x.ticks(d3.timeMonth.every(3));const end=x.domain()[1];if(!auto.length||auto[auto.length-1].getTime()!==end.getTime())auto.push(end);return auto;})()).tickSize(4).tickFormat(d=&gt;{const ms=[&quot;jan&quot;,&quot;fev&quot;,&quot;mar&quot;,&quot;abr&quot;,&quot;mai&quot;,&quot;jun&quot;,&quot;jul&quot;,&quot;ago&quot;,&quot;set&quot;,&quot;out&quot;,&quot;nov&quot;,&quot;dez&quot;];return ms[d.getMonth()]+&quot;/&quot;+(d.getFullYear()%100).toString().padStart(2,&quot;0&quot;);})
+    d3.axisBottom(x).tickValues(x.ticks(d3.timeMonth.every(3))).tickSize(4).tickFormat(d=&gt;{const ms=[&quot;jan&quot;,&quot;fev&quot;,&quot;mar&quot;,&quot;abr&quot;,&quot;mai&quot;,&quot;jun&quot;,&quot;jul&quot;,&quot;ago&quot;,&quot;set&quot;,&quot;out&quot;,&quot;nov&quot;,&quot;dez&quot;];return ms[d.getMonth()]+&quot;/&quot;+(d.getFullYear()%100).toString().padStart(2,&quot;0&quot;);})
   ).call(ax=&gt;{
     ax.select(&quot;.domain&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
     ax.selectAll(&quot;.tick line&quot;).attr(&quot;stroke&quot;,gridRGBA(0.1));
