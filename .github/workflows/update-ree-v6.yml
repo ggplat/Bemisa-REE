@@ -1,0 +1,109 @@
+name: Atualizar Dashboard REE v6
+
+# Pipeline diario de dados de mercado do Dashboard_REE_v6_Q2.html:
+# preco de fechamento, cambio (AUD/USD e CAD/USD) e volume financeiro.
+# As series de investimento, acoes em circulacao e eventos de projeto NAO sao
+# tocadas aqui - continuam sob curadoria manual.
+#
+# 22:30 UTC (nao 22:00) para nao disputar o push com "Atualizar dashboard",
+# que roda as 22:00 e tambem commita em main.
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"   # 22:30 UTC, seg-sex, apos o fechamento de ASX e TSX
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Rebaixar o historico completo (--full)"
+        type: boolean
+        default: false
+      force_ticker:
+        description: "Aplicar mesmo com flag de outlier (ex.: SGQ)"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-ree-v6
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Configurar Node (checagem de renderizacao)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependencias
+        run: |
+          pip install -r requirements.txt
+          npm install --no-save --no-audit --no-fund jsdom d3@7
+
+      - name: Testes offline
+        run: python -m unittest discover -s tests -v
+
+      # Sanidade antes de mexer em qualquer coisa: se o dashboard commitado ja
+      # estiver quebrado, nao faz sentido aplicar dado novo em cima.
+      - name: Checar renderizacao da versao atual
+        run: node tools/render_check.js
+
+      - name: Coletar dados de mercado
+        run: |
+          python fetch_market_data.py -v \
+            ${{ inputs.full && '--full' || '' }} \
+            ${{ inputs.force_ticker && format('--force-ticker {0}', inputs.force_ticker) || '' }}
+
+      - name: Aplicar ao dashboard
+        run: python update_dashboard.py -v
+
+      - name: Commitar (se mudou)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Dashboard_REE_v6_Q2.html docs/dashboard_ree_v6.html \
+                  data/market_data.json logs/pipeline.jsonl
+          if git diff --staged --quiet; then
+            echo "Sem mudancas."
+            exit 0
+          fi
+          git commit -m "dados: atualizar dashboard REE v6 ($(date -u +%Y-%m-%d))"
+          # Retry com backoff: o workflow das 22:00 pode ter acabado de commitar.
+          for delay in 0 2 4 8 16; do
+            [ "$delay" -gt 0 ] && sleep "$delay"
+            git pull --rebase origin "${GITHUB_REF_NAME}" && \
+              git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            echo "push falhou, nova tentativa em ${delay}s..."
+          done
+          echo "não foi possivel publicar o commit" >&2
+          exit 1
+
+      - name: Alerta por e-mail (sucesso ou anomalia)
+        if: success()
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_TO: ${{ vars.ALERT_TO }}
+        run: python notify.py
+
+      - name: Alerta por e-mail (falha)
+        if: failure()
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_TO: ${{ vars.ALERT_TO }}
+        run: |
+          python notify.py --failure \
+            "Job '${{ github.job }}' falhou na execucao ${{ github.run_id }}.
+          Detalhes: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
