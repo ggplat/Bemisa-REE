@@ -27,6 +27,13 @@ import update_dashboard as U
 
 DASHBOARD = R.DASHBOARD
 
+# Um mês daqui a alguns anos, garantidamente ausente do dashboard real (que o
+# pipeline diário mantém sempre atualizado até "hoje"). Os testes que
+# precisam simular "um mês novo que ainda não existe" usam esta constante em
+# vez de uma string fixa como "jul/26" — que deixou de ser nova assim que o
+# pipeline passou a rodar de verdade.
+NEW_MONTH = R.month_key(dt.date.today().year + 5, 1)
+
 
 def _weekdays(year: int, month: int, count: int) -> list[dt.date]:
     out, d = [], dt.date(year, month, 1)
@@ -38,8 +45,11 @@ def _weekdays(year: int, month: int, count: int) -> list[dt.date]:
 
 
 def build_state(tickers=("ARA", "BRE", "MEI", "SGQ", "VMM"), *,
-                year=2026, month=7, days=10) -> dict:
-    """Estado sintético com um mês novo (jul/26) para todos os tickers."""
+                year=None, month=None, days=10) -> dict:
+    """Estado sintético com um mês novo (NEW_MONTH) para todos os tickers."""
+    if year is None or month is None:
+        mon_abbr, yy = NEW_MONTH.split("/")
+        year, month = 2000 + int(yy), R.MESES_PT.index(mon_abbr) + 1
     state = {"schema": 1, "source": "test", "updated_utc": "2026-08-12T22:00:00Z",
              "fx": {}, "tickers": {}, "flags": []}
     dates = _weekdays(year, month, days)
@@ -140,7 +150,7 @@ class TestDashboardInvariants(unittest.TestCase):
 
     def test_invariant_check_rejects_uncovered_month(self):
         spec = R.BY_TICKER["ARA"]
-        js, _ = R.upsert_dict_entry(self.frames[0], spec.price_var, "jul/26", "4.5000")
+        js, _ = R.upsert_dict_entry(self.frames[0], spec.price_var, NEW_MONTH, "4.5000")
         with self.assertRaises(U.UpdateAborted):
             U.check_frame_invariants(js, spec)
 
@@ -160,14 +170,14 @@ class TestSurgicalEditing(unittest.TestCase):
         # Inserir na mesma linha comentaria o dado novo — perda silenciosa.
         js = self.frames[3]
         self.assertIn("// provisório", js)
-        new_js, action = R.upsert_dict_entry(js, "sharesMap", "jul/26", "3814671589",
+        new_js, action = R.upsert_dict_entry(js, "sharesMap", NEW_MONTH, "3814671589",
                                              comment="forward-fill")
         self.assertEqual(action, "inserted")
-        self.assertEqual(R.read_js_dict(new_js, "sharesMap")["jul/26"], 3814671589)
+        self.assertEqual(R.read_js_dict(new_js, "sharesMap")[NEW_MONTH], 3814671589)
 
     def test_existing_inline_comments_survive(self):
         js = self.frames[3]
-        new_js, _ = R.upsert_dict_entry(js, "sharesMap", "jul/26", "3814671589")
+        new_js, _ = R.upsert_dict_entry(js, "sharesMap", NEW_MONTH, "3814671589")
         self.assertIn("// provisório — aguardando confirmação de emissões", new_js)
 
     def test_update_existing_key_keeps_its_comment(self):
@@ -305,8 +315,8 @@ class TestEndToEndUpdate(unittest.TestCase):
         for spec in R.FRAMES:
             before, after = before_frames[spec.frame], after_frames[spec.frame]
             # o que deve mudar
-            self.assertIn("jul/26", R.read_js_dict(after, spec.price_var))
-            self.assertIn("jul/26", R.read_js_dict(after, spec.fx_var))
+            self.assertIn(NEW_MONTH, R.read_js_dict(after, spec.price_var))
+            self.assertIn(NEW_MONTH, R.read_js_dict(after, spec.fx_var))
             self.assertGreater(len(R.read_vol_dates(after)), len(R.read_vol_dates(before)))
             # o que não pode mudar, byte a byte
             for var in R.MANUAL_VARS:
@@ -321,10 +331,32 @@ class TestEndToEndUpdate(unittest.TestCase):
             frames = R.extract_frames(fh.read())
         for spec in R.FRAMES:
             js = frames[spec.frame]
-            self.assertIn("jul/26", R.read_js_dict(js, "sharesMap"))
-            self.assertIn("jul/26", R.read_js_dict(js, "cumInvK"))
+            self.assertIn(NEW_MONTH, R.read_js_dict(js, "sharesMap"))
+            self.assertIn(NEW_MONTH, R.read_js_dict(js, "cumInvK"))
             self.assertIn("forward-fill automático", js)
             U.check_frame_invariants(js, spec)  # não quebrou o contrato
+
+    def test_first_run_never_overwrites_a_month_already_in_the_dashboard(self):
+        # Regressão real: na primeira execução em produção, um mês já FECHADO
+        # e curado à mão no dashboard (jun/26) foi recalculado a partir de
+        # só 2 pregões disponíveis na janela de busca — sem histórico prévio
+        # em market_data.json para protegê-lo — e sobrescreveu o valor
+        # original com até 13% de diferença. `apply_frame` deve recusar
+        # qualquer mês que já exista no dashboard, mesmo que seja a primeira
+        # vez que o pipeline roda e mesmo que venha marcado "closed": true.
+        spec = R.BY_TICKER["ARA"]
+        js = R.extract_frames(open(self.dash, encoding="utf-8").read())[spec.frame]
+        existing_month = "jun/26"
+        original_price = R.read_js_dict(js, spec.price_var)[existing_month]
+
+        state = {"tickers": {"ARA": {"monthly": {
+            existing_month: {"mean": original_price * 3, "n_days": 2, "closed": True},
+        }}}, "fx": {"CADUSD": {"monthly": {}}}}
+
+        new_js, changes = U.apply_frame(js, spec, state)
+        self.assertEqual(new_js, js, "mês já existente foi reescrito")
+        self.assertIn(existing_month, changes["protected"])
+        self.assertEqual(changes["price"], {})
 
     def test_second_run_is_a_no_op(self):
         self.assertEqual(self._run(), 0)
