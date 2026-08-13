@@ -32,12 +32,15 @@ header{
   background-image:linear-gradient(118deg, color-mix(in srgb,var(--mark) 12%,transparent), transparent 45%);
   border-bottom:1px solid var(--line); padding:13px 16px 10px;
 }
-.title-row{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
+.title-row{display:flex; align-items:center; justify-content:space-between; gap:10px}
+.brand-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
 .wordmark{display:flex; align-items:center; gap:6px; font-weight:700; font-size:11px;
-  letter-spacing:2.5px; color:var(--brand); margin-bottom:3px}
+  letter-spacing:2.5px; color:var(--brand)}
 .wm-icon{width:16px; height:16px; display:block; flex:0 0 auto}
-h1{font-size:18px; font-weight:700; letter-spacing:-.2px; color:var(--txt)}
-h1 .sub{color:var(--mut); font-weight:600}
+.wm-map{fill:var(--mark)}
+html[data-theme="dark"] .wm-map{fill:var(--brand)}
+.title-sep{color:var(--line); font-weight:400; font-size:16px}
+h1{font-size:18px; font-weight:700; letter-spacing:.2px; color:var(--txt); text-transform:uppercase}
 .head-actions{display:flex; gap:6px; align-items:center}
 .theme-btn,.refresh-btn{
   background:var(--panel); color:var(--mut); border:1px solid var(--line);
@@ -183,9 +186,10 @@ footer .src{color:var(--mut)}
 <body>
 <header>
   <div class="title-row">
-    <div>
-      <div class="wordmark"><svg class="wm-icon" viewBox="0 0 42 42" aria-hidden="true"><rect width="42" height="42" rx="9" fill="currentColor"/><path d="M17 7 C23 6 29 8 32 13 C35 17 33 21 30 23 C33 27 31 31 28 33 C25 35 23 37 21 36 C19 38 16 36 15 33 C11 31 9 27 11 23 C8 20 8 16 10 13 C12 9 14 8 17 7 Z" fill="var(--mark)" stroke="var(--bg)" stroke-width="2.4"/></svg>BEMISA</div>
-      <h1>Monitor de Comunicados <span class="sub">&middot; REE</span></h1>
+    <div class="brand-row">
+      <div class="wordmark"><svg class="wm-icon" viewBox="0 0 42 42" aria-hidden="true"><rect width="42" height="42" rx="9" fill="currentColor"/><path class="wm-map" d="M16 6 C22 5 29 7 32 12 C35 16 34 20 30 22 C33 25 32 29 29 32 C26 35 23 36 21 34 C19 36 15 35 13 32 C9 30 8 26 11 23 C7 20 7 15 10 11 C12 7 13 6 16 6 Z" stroke="var(--bg)" stroke-width="2.4"/></svg>BEMISA</div>
+      <span class="title-sep">|</span>
+      <h1>Monitor de Comunicados REE</h1>
     </div>
     <div class="head-actions">
       <button class="refresh-btn" id="refreshBtn" onclick="refreshDashboard()" title="Recarrega a versao mais recente publicada"><span class="ico">&#8635;</span><span>atualizar</span></button>
