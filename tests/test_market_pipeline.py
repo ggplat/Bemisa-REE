@@ -143,17 +143,18 @@ class TestLastUpdated(unittest.TestCase):
     def test_marker_exists_exactly_once(self):
         self.assertEqual(self.doc.count('id="last-updated"'), 1)
 
-    def test_set_last_updated_only_touches_the_span_text(self):
-        when = dt.datetime(2026, 8, 13, 14, 30)
+    def test_set_last_updated_converts_utc_to_brasilia_time(self):
+        # UTC-3 fixo (Brasil não tem mais horário de verão desde 2019).
+        when = dt.datetime(2026, 8, 13, 14, 30, tzinfo=dt.timezone.utc)
         out = R.set_last_updated(self.doc, when)
-        self.assertIn("Atualizado em 13/08/2026 14:30 UTC", out)
+        self.assertIn("Atualizado em 13/08/2026 11:30 (horário de Brasília)", out)
         # nada fora do proprio span pode mudar
         before = R.OUTER_TIMESTAMP_RE.sub("X", self.doc)
         after = R.OUTER_TIMESTAMP_RE.sub("X", out)
         self.assertEqual(before, after)
 
     def test_does_not_touch_iframe_content(self):
-        when = dt.datetime(2026, 8, 13, 14, 30)
+        when = dt.datetime(2026, 8, 13, 14, 30, tzinfo=dt.timezone.utc)
         out = R.set_last_updated(self.doc, when)
         before_frames = R.extract_frames(self.doc)
         after_frames = R.extract_frames(out)
@@ -161,7 +162,8 @@ class TestLastUpdated(unittest.TestCase):
 
     def test_check_brand_rejects_marker_removal(self):
         stripped = self.doc.replace(
-            '<span class="last-updated" id="last-updated">Atualizado em --/--/---- --:-- UTC</span>',
+            '<span class="last-updated" id="last-updated">'
+            'Atualizado em --/--/---- --:-- (horário de Brasília)</span>',
             "")
         with self.assertRaises(U.UpdateAborted):
             U.check_brand(self.doc, stripped)
@@ -402,7 +404,7 @@ class TestEndToEndUpdate(unittest.TestCase):
             stamped = fh.read()
         # o placeholder inicial some assim que ha uma mudanca real de dado
         self.assertNotIn("--/--/---- --:--", stamped)
-        self.assertRegex(stamped, r"Atualizado em \d{2}/\d{2}/\d{4} \d{2}:\d{2} UTC")
+        self.assertRegex(stamped, r"Atualizado em \d{2}/\d{2}/\d{4} \d{2}:\d{2} \(horário de Brasília\)")
 
         # segunda execucao: nada novo em market_data.json -> no-op -> `run()`
         # retorna antes mesmo de chegar em set_last_updated (ver early-return

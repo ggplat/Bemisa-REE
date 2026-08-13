@@ -16,6 +16,9 @@ import html
 import os
 import re
 from dataclasses import dataclass
+from zoneinfo import ZoneInfo
+
+BRASILIA_TZ = ZoneInfo("America/Sao_Paulo")
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DASHBOARD = os.path.join(ROOT, "Dashboard_REE_v6_Q2.html")
@@ -136,10 +139,15 @@ OUTER_TIMESTAMP_RE = re.compile(r'(<span class="last-updated" id="last-updated">
 def set_last_updated(doc: str, when: dt.datetime) -> str:
     """Atualiza o texto do indicador de última atualização, na barra de nav.
 
+    `when` é convertido para o horário de Brasília (UTC-3 fixo — o Brasil
+    não tem mais horário de verão desde 2019) antes de formatar; o público
+    do dashboard é brasileiro, e a execução do pipeline roda em UTC.
+
     Diferente dos frames, o documento externo é HTML bruto — não um atributo
     escapado — então não há passo de unescape/escape aqui.
     """
-    text = f"Atualizado em {when:%d/%m/%Y %H:%M} UTC"
+    local = when.astimezone(BRASILIA_TZ)
+    text = f"Atualizado em {local:%d/%m/%Y %H:%M} (horário de Brasília)"
     return OUTER_TIMESTAMP_RE.sub(lambda m: m.group(1) + text + m.group(3), doc, count=1)
 
 
