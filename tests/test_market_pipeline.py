@@ -133,6 +133,40 @@ class TestSrcdocRoundTrip(unittest.TestCase):
                 f"domínio={domain_expr!r} definição='{end_def}'")
 
 
+class TestLastUpdated(unittest.TestCase):
+    """Indicador de última atualização na barra de nav (fora dos iframes)."""
+
+    def setUp(self):
+        with open(DASHBOARD, encoding="utf-8") as fh:
+            self.doc = fh.read()
+
+    def test_marker_exists_exactly_once(self):
+        self.assertEqual(self.doc.count('id="last-updated"'), 1)
+
+    def test_set_last_updated_only_touches_the_span_text(self):
+        when = dt.datetime(2026, 8, 13, 14, 30)
+        out = R.set_last_updated(self.doc, when)
+        self.assertIn("Atualizado em 13/08/2026 14:30 UTC", out)
+        # nada fora do proprio span pode mudar
+        before = R.OUTER_TIMESTAMP_RE.sub("X", self.doc)
+        after = R.OUTER_TIMESTAMP_RE.sub("X", out)
+        self.assertEqual(before, after)
+
+    def test_does_not_touch_iframe_content(self):
+        when = dt.datetime(2026, 8, 13, 14, 30)
+        out = R.set_last_updated(self.doc, when)
+        before_frames = R.extract_frames(self.doc)
+        after_frames = R.extract_frames(out)
+        self.assertEqual(before_frames, after_frames)
+
+    def test_check_brand_rejects_marker_removal(self):
+        stripped = self.doc.replace(
+            '<span class="last-updated" id="last-updated">Atualizado em --/--/---- --:-- UTC</span>',
+            "")
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, stripped)
+
+
 class TestAxisTickLabels(unittest.TestCase):
     """O eixo X só mostra um rótulo por trimestre — nunca força o mês mais
     recente a aparecer se ele não cair nesse ritmo. Isso não afeta os
@@ -361,6 +395,24 @@ class TestEndToEndUpdate(unittest.TestCase):
                                  f"{spec.ticker}: bloco {var} foi alterado")
                 self.assertNotEqual(_block_of(before, var), "",
                                     f"{spec.ticker}: bloco {var} não foi localizado")
+
+    def test_last_updated_stamped_only_when_something_changes(self):
+        self.assertEqual(self._run(), 0)
+        with open(self.dash, encoding="utf-8") as fh:
+            stamped = fh.read()
+        # o placeholder inicial some assim que ha uma mudanca real de dado
+        self.assertNotIn("--/--/---- --:--", stamped)
+        self.assertRegex(stamped, r"Atualizado em \d{2}/\d{2}/\d{4} \d{2}:\d{2} UTC")
+
+        # segunda execucao: nada novo em market_data.json -> no-op -> `run()`
+        # retorna antes mesmo de chegar em set_last_updated (ver early-return
+        # "if not updated"), entao o arquivo inteiro fica byte-identico —
+        # inclusive o timestamp, que so seria diferente se a stampagem
+        # tivesse rodado de novo por engano.
+        self.assertEqual(self._run(), 0)
+        with open(self.dash, encoding="utf-8") as fh:
+            twice = fh.read()
+        self.assertEqual(stamped, twice)
 
     def test_new_month_gets_flagged_forward_fill(self):
         self.assertEqual(self._run(), 0)

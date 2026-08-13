@@ -128,6 +128,21 @@ def replace_frames(doc: str, new_inner: dict[int, str]) -> str:
     return FRAME_RE.sub(_sub, doc)
 
 
+# ── DOCUMENTO EXTERNO (fora dos iframes) ─────────────────────────────────────
+
+OUTER_TIMESTAMP_RE = re.compile(r'(<span class="last-updated" id="last-updated">)(.*?)(</span>)')
+
+
+def set_last_updated(doc: str, when: dt.datetime) -> str:
+    """Atualiza o texto do indicador de última atualização, na barra de nav.
+
+    Diferente dos frames, o documento externo é HTML bruto — não um atributo
+    escapado — então não há passo de unescape/escape aqui.
+    """
+    text = f"Atualizado em {when:%d/%m/%Y %H:%M} UTC"
+    return OUTER_TIMESTAMP_RE.sub(lambda m: m.group(1) + text + m.group(3), doc, count=1)
+
+
 # ── DICTS JS DENTRO DO SRCDOC ────────────────────────────────────────────────
 
 ENTRY_RE = re.compile(r'"([a-z]{3}/\d{2})"\s*:\s*(-?[\d.]+(?:[eE][-+]?\d+)?)')

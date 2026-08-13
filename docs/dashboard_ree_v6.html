@@ -80,6 +80,14 @@
     margin-bottom: 10px;
   }
   .master-toggle:hover { opacity: .8; }
+  .last-updated {
+    font-family: 'Carlito', sans-serif;
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 10px;
+    margin-bottom: 10px;
+    white-space: nowrap;
+  }
   .chart-frame {
     flex: 1;
     width: 100%;
@@ -115,6 +123,7 @@
       <button class="tab " data-idx="3" onclick="switchTab(3)">SGQ — Araxá</button>
       <button class="tab " data-idx="4" onclick="switchTab(4)">VMM — Colossus</button>
       <button class="master-toggle" id="master-toggle-btn" onclick="toggleAllThemes()">☽ Modo Escuro</button>
+      <span class="last-updated" id="last-updated">Atualizado em --/--/---- --:-- UTC</span>
 </div>
 
     <iframe id="frame-0" class="chart-frame" style="display:block" srcdoc="&lt;!DOCTYPE html&gt;
@@ -2745,15 +2754,15 @@ const cumInvK = {
   &quot;out/25&quot;:15387,&quot;nov/25&quot;:15387,&quot;dez/25&quot;:30606,
   &quot;jan/26&quot;:30606,&quot;fev/26&quot;:30606,
   &quot;mar/26&quot;:34010, // +3.404k (Q1/2026 E&amp;E - A$4.933k x 0,6901 [taxa 31/03/2026: USD/AUD 1,4491])
-  &quot;abr/26&quot;:34010,&quot;mai/26&quot;:34010,&quot;jun/26&quot;:34010, // aguardando relatório Q2/2026
-  &quot;jul/26&quot;:34010,  // forward-fill automático — confirmar (Nota 10 / segment note)
-  &quot;ago/26&quot;:34010,  // forward-fill automático — confirmar (Nota 10 / segment note)
+  &quot;abr/26&quot;:34010,&quot;mai/26&quot;:34010,&quot;jun/26&quot;:36410, // +2.400k (Q2/2026)
+  &quot;jul/26&quot;:36410,
+  &quot;ago/26&quot;:36410,
 };
 
 // ── QUARTERLY BARS (USD$k) ────────────────────────────────────────────────────
 const qBarK = {
   &quot;set/24&quot;:556,&quot;dez/24&quot;:695,&quot;mar/25&quot;:10861,&quot;jun/25&quot;:1216,&quot;set/25&quot;:2059,&quot;dez/25&quot;:15219,
-  &quot;mar/26&quot;:3404,
+  &quot;mar/26&quot;:3404,&quot;jun/26&quot;:2400,
 };
 
 // ── ISSUANCE EVENTS ───────────────────────────────────────────────────────────

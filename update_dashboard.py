@@ -115,7 +115,7 @@ def check_brand(before: str, after: str) -> None:
     n_after = len(R.FRAME_RE.findall(after))
     if n_before != n_after or n_after != 5:
         raise UpdateAborted(f"contagem de iframes mudou: {n_before} → {n_after}")
-    for marker in ("data:image/png;base64,", "chart-frame", "master-toggle"):
+    for marker in ("data:image/png;base64,", "chart-frame", "master-toggle", 'id="last-updated"'):
         if before.count(marker) != after.count(marker):
             raise UpdateAborted(f"estrutura alterada: marcador '{marker}' mudou de contagem")
 
@@ -259,6 +259,7 @@ def run(args) -> int:
 
     new_doc = R.replace_frames(original, updated)
     check_brand(original, new_doc)
+    new_doc = R.set_last_updated(new_doc, started)
 
     for ticker, ch in summary.items():
         if ch.get("skipped"):
