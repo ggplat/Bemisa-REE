@@ -52,7 +52,10 @@ def _chg_tooltip(a: Announcement, symbol: str) -> str:
     """Texto do tooltip que confirma o valor da variacao."""
     arrow = "▲" if a.pct_change > 0.05 else ("▼" if a.pct_change < -0.05 else "=")
     when = _date_label(a.reaction_date) if a.reaction_date else _date_label(a.date)
-    return (f"Reação em {when} · fech. anterior {_fmt_price(a.prev_close)} "
+    # estreia/IPO: sem pregao anterior, a referencia e a abertura do proprio dia
+    same_day = a.prev_date is not None and a.reaction_date is not None and a.prev_date == a.reaction_date
+    ref_label = "abertura" if same_day else "fech. anterior"
+    return (f"Reação em {when} · {ref_label} {_fmt_price(a.prev_close)} "
             f"→ {_fmt_price(a.close)} · {arrow} {_fmt_pct(a.pct_change)}% "
             f"(Yahoo Finance: {symbol})")
 

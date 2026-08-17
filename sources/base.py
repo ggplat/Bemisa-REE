@@ -30,10 +30,11 @@ class Announcement:
     doc_type: str = "Comunicado"      # tag principal (ex.: 'Trimestral', 'Appendix 3B')
     pages: Optional[int] = None
     source: str = ""                  # origem/veiculo (ex.: 'Zacks', 'ASX') - vira tag
-    pct_change: Optional[float] = None  # variacao % close-to-close no dia (None = sem dado)
-    prev_close: Optional[float] = None  # fechamento do pregao anterior (para o tooltip)
+    pct_change: Optional[float] = None  # variacao % no dia (None = sem dado)
+    prev_close: Optional[float] = None  # preco de referencia anterior (para o tooltip)
     close: Optional[float] = None       # fechamento no pregao da reacao
     reaction_date: Optional["dt.date"] = None  # pregao usado como dia da reacao
+    prev_date: Optional["dt.date"] = None  # data do preco de referencia anterior
 
     @property
     def tags(self) -> list[str]:

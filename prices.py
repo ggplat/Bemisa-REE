@@ -29,10 +29,10 @@ class Reaction:
 
 class PriceProvider:
     def __init__(self) -> None:
-        # symbol -> Series(date -> close ordenado por data)
-        self._cache: dict[str, "pd.Series"] = {}
+        # symbol -> DataFrame(index=date, columns=[Open, Close]) ordenado por data
+        self._cache: dict[str, "pd.DataFrame"] = {}
 
-    def _history(self, symbol: str, start: dt.date, end: dt.date) -> "pd.Series":
+    def _history(self, symbol: str, start: dt.date, end: dt.date) -> "pd.DataFrame":
         if symbol in self._cache:
             return self._cache[symbol]
         # margem para garantir pregao anterior e dia da reacao
@@ -43,40 +43,48 @@ class PriceProvider:
         except Exception as exc:  # noqa: BLE001
             log.warning("Precos %s: download falhou: %s", symbol, exc)
             df = pd.DataFrame()
-        if df.empty or "Close" not in df:
-            series = pd.Series(dtype="float64")
+        if df.empty or "Close" not in df or "Open" not in df:
+            out = pd.DataFrame(columns=["Open", "Close"])
         else:
-            series = df["Close"].copy()
-            series.index = pd.to_datetime(series.index).date
-            series = series[~series.index.duplicated(keep="last")].sort_index()
-        self._cache[symbol] = series
-        return series
+            out = df[["Open", "Close"]].copy()
+            out.index = pd.to_datetime(out.index).date
+            out = out[~out.index.duplicated(keep="last")].sort_index()
+        self._cache[symbol] = out
+        return out
 
     def reaction(self, symbol: str, date: dt.date, *,
                  window_start: dt.date, window_end: dt.date) -> Optional[Reaction]:
         """Reacao close-to-close no pregao do comunicado vs. pregao anterior.
 
         Se 'date' nao for pregao, usa o proximo pregao como dia da reacao.
+        Excecao: quando o comunicado cai no 1o pregao com preco disponivel (ex.:
+        estreia/IPO) nao ha fechamento anterior — usa abertura -> fechamento
+        desse mesmo pregao em vez de descartar a reacao.
         Retorna None quando nao ha dados suficientes.
         """
-        series = self._history(symbol, window_start, window_end)
-        if series.empty:
+        df = self._history(symbol, window_start, window_end)
+        if df.empty:
             return None
-        dates = list(series.index)
+        dates = list(df.index)
 
         # dia da reacao: data do comunicado ou o proximo pregao disponivel
         reaction = next((d for d in dates if d >= date), None)
         if reaction is None:
             return None
         idx = dates.index(reaction)
+        close = float(df["Close"].iloc[idx])
         if idx == 0:
-            return None
-        prev_close = float(series.iloc[idx - 1])
-        close = float(series.iloc[idx])
+            if reaction != date:
+                return None  # comunicado e anterior ao 1o pregao com dado
+            prev_close = float(df["Open"].iloc[idx])
+            prev_date = reaction
+        else:
+            prev_close = float(df["Close"].iloc[idx - 1])
+            prev_date = dates[idx - 1]
         if prev_close == 0:
             return None
         return Reaction(
             pct=(close - prev_close) / prev_close * 100.0,
             prev_close=prev_close, close=close,
-            prev_date=dates[idx - 1], reaction_date=reaction,
+            prev_date=prev_date, reaction_date=reaction,
         )

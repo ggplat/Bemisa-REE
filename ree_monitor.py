@@ -74,6 +74,7 @@ def collect_live(companies: list[Company]) -> dict[str, list[Announcement]]:
                     a.prev_close = r.prev_close
                     a.close = r.close
                     a.reaction_date = r.reaction_date
+                    a.prev_date = r.prev_date
         result[company.ticker] = anns
 
     return result
