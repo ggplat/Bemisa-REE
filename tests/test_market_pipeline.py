@@ -161,10 +161,12 @@ class TestLastUpdated(unittest.TestCase):
         self.assertEqual(before_frames, after_frames)
 
     def test_check_brand_rejects_marker_removal(self):
-        stripped = self.doc.replace(
-            '<span class="last-updated" id="last-updated">'
-            'Atualizado em --/--/---- --:-- (horário de Brasília)</span>',
-            "")
+        # Remove o span inteiro pelo regex (nao por texto fixo): o pipeline
+        # ja preenche esse span com a data real a cada execucao, entao um
+        # placeholder hardcoded (ex. "--/--/----") fica obsoleto assim que
+        # roda pela primeira vez de verdade.
+        stripped = R.OUTER_TIMESTAMP_RE.sub("", self.doc, count=1)
+        self.assertNotEqual(stripped, self.doc)
         with self.assertRaises(U.UpdateAborted):
             U.check_brand(self.doc, stripped)
 
