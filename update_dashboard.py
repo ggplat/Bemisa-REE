@@ -326,6 +326,13 @@ def main(argv: list[str] | None = None) -> int:
         log.error("ABORTADO: %s", exc)
         log.error("O dashboard de produção NÃO foi modificado.")
         return 1
+    except subprocess.TimeoutExpired as exc:
+        # node --check / render_check.js travado alem do timeout: mesmo
+        # tratamento de UpdateAborted (nada e gravado), mas com uma mensagem
+        # clara em vez de um traceback cru e sem entrada no log do pipeline.
+        log.error("ABORTADO: comando '%s' nao respondeu em %ss", " ".join(exc.cmd), exc.timeout)
+        log.error("O dashboard de produção NÃO foi modificado.")
+        return 1
 
 
 if __name__ == "__main__":

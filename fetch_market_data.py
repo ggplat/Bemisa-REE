@@ -24,6 +24,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 import uuid
 
 import ree_v6 as R
@@ -95,9 +96,10 @@ def qc_series(label: str, fetched: dict[str, dict], stored: dict[str, dict],
               max_pct: float, *, is_fx: bool, force: bool) -> tuple[dict, list[dict]]:
     """Valida a série buscada. Devolve (dias aceitos, flags).
 
-    A variação é medida contra o **vizinho cronológico da própria série do
-    provedor**, não contra o último dia aceito. Assim um pico isolado reprova
-    só os dias envolvidos, em vez de invalidar em cascata tudo que vem depois.
+    A variação é medida contra o **vizinho cronológico válido mais próximo na
+    própria série do provedor** (pulando vizinhos com close inválido), não
+    contra o último dia aceito. Assim um pico isolado reprova só os dias
+    envolvidos, em vez de invalidar em cascata tudo que vem depois.
     """
     accepted: dict[str, dict] = {}
     flags: list[dict] = []
@@ -128,25 +130,34 @@ def qc_series(label: str, fetched: dict[str, dict], stored: dict[str, dict],
             if not force:
                 continue
 
-        # Outlier contra o pregão anterior da própria série.
-        if i > 0:
-            prev = fetched[dates[i - 1]].get("close")
-            if prev and prev > 0:
-                pct = (close - prev) / prev * 100
-                if abs(pct) > max_pct:
-                    kind = "outlier_fx" if is_fx else "outlier_pct"
-                    flags.append({"kind": kind, "series": label, "date": date,
-                                  "detail": f"variação de {pct:+.1f}% vs. {dates[i - 1]} "
-                                            f"({prev} → {close}); limite {max_pct}%"})
-                    if not force:
-                        continue
+        # Outlier contra o vizinho cronologico valido mais proximo na propria
+        # serie (nao so o dia imediatamente anterior): se esse vizinho tiver
+        # close invalido (ex.: glitch do provedor, fechamento<=0), comparar
+        # direto pularia a checagem pro dia seguinte -- 2 glitches consecutivos
+        # passariam sem nenhuma validacao de salto.
+        prev = None
+        prev_date = None
+        for j in range(i - 1, -1, -1):
+            candidate = fetched[dates[j]].get("close")
+            if candidate and candidate > 0:
+                prev, prev_date = candidate, dates[j]
+                break
+        if prev is not None:
+            pct = (close - prev) / prev * 100
+            if abs(pct) > max_pct:
+                kind = "outlier_fx" if is_fx else "outlier_pct"
+                flags.append({"kind": kind, "series": label, "date": date,
+                              "detail": f"variação de {pct:+.1f}% vs. {prev_date} "
+                                        f"({prev} → {close}); limite {max_pct}%"})
+                if not force:
+                    continue
 
         accepted[date] = {"close": close, "volume": vol}
 
     # Gap: o provedor parou de responder há mais pregões do que o tolerável.
     if dates:
         last = dt.date.fromisoformat(dates[-1])
-        stale = _business_days_between(last, dt.date.today())
+        stale = _business_days_between(last, R.today_brasilia())
         if stale > MAX_STALE_BDAYS:
             flags.append({"kind": "gap", "series": label, "date": dates[-1],
                           "detail": f"último dado há {stale} pregões "
@@ -191,14 +202,33 @@ def load_state(path: str) -> dict:
         return {"schema": SCHEMA, "updated_utc": None, "source": SOURCE,
                 "fx": {}, "tickers": {}, "flags": []}
     with open(path, encoding="utf-8") as fh:
-        return json.load(fh)
+        try:
+            return json.load(fh)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"{path} esta corrompido ou incompleto (JSON invalido): {exc}. "
+                "Provavel interrupcao no meio de uma gravacao anterior; "
+                "restaure de um backup/commit anterior antes de rodar de novo.") from exc
 
 
 def save_state(path: str, state: dict) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(state, fh, ensure_ascii=False, indent=1, sort_keys=True)
-        fh.write("\n")
+    """Grava atomicamente: escreve num arquivo temporario no mesmo diretorio e
+    substitui via os.replace (atomico no mesmo filesystem). Uma interrupcao no
+    meio da escrita (timeout do runner, OOM, etc.) nunca deixa o arquivo final
+    truncado/corrompido -- o pior caso e um arquivo temporario orfao, e o
+    market_data.json anterior continua intacto e legivel.
+    """
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=".market_data-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(state, fh, ensure_ascii=False, indent=1, sort_keys=True)
+            fh.write("\n")
+        os.replace(tmp_path, path)
+    except BaseException:
+        os.unlink(tmp_path)
+        raise
 
 
 def append_log(entry: dict) -> None:
@@ -263,7 +293,7 @@ def run(args) -> dict:
             raise SystemExit(f"nenhuma empresa encontrada para: {args.only}")
 
     forced = {t.strip().upper() for t in args.force_ticker.split(",")} if args.force_ticker else set()
-    start = None if args.full else dt.date.today() - dt.timedelta(days=args.days)
+    start = None if args.full else R.today_brasilia() - dt.timedelta(days=args.days)
     flags: list[dict] = []
     fetched_summary: dict[str, dict] = {}
 

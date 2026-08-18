@@ -6,7 +6,9 @@ A fonte de cada empresa e configurada em companies.json no campo 'news':
   - {"type": "aclara", "url": "https://www.aclara-re.com/news"} -> scraping do site oficial
   - {"type": "imc", "url": ".../news-events/news-releases"} -> press releases oficiais da
     IMC Rare Earths (scraping da pagina de IR em ir.imcrareearths.com; cobre NYSE American: IMC)
-  - {"type": "rss"/"appia", "url": "...", "source": "..."} -> feed RSS do site da empresa
+  - {"type": "appia", "url": "..."} -> feed RSS da Appia (url e opcional, tem default)
+  - {"type": "rss", "url": "...", "source": "..."} -> feed RSS generico; 'url' e
+    OBRIGATORIO (sem default - evita atribuir noticias de uma empresa a outra)
   - {"type": "yahoo", "symbol": "UUUU"} -> feed agregado do Yahoo Finance (yfinance)
 
 Preferimos os comunicados OFICIAIS de cada empresa (RSS proprio ou site), que so trazem
@@ -21,7 +23,9 @@ import logging
 import re
 from email.utils import parsedate_to_datetime
 from typing import Optional
+from urllib.parse import urlsplit
 from xml.etree import ElementTree as ET
+from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
 
@@ -31,6 +35,11 @@ from . import http_util
 log = logging.getLogger("ree")
 
 MAX_ITEMS = 40
+# TSX/CSE fecham no fuso de Toronto, NYSE American no de Nova York -- os dois
+# seguem o mesmo horario (America/New_York cobre ambos, ET). Convertido antes
+# de extrair a data pra evitar que uma noticia publicada a noite (ET) caia no
+# dia UTC seguinte por engano.
+_EXCHANGE_TZ = ZoneInfo("America/New_York")
 
 _TYPE_LABEL = {
     "STORY": "Notícia", "VIDEO": "Vídeo",
@@ -47,9 +56,18 @@ class CanadaSource(Source):
         cfg = company.news or {}
         ntype = cfg.get("type", "yahoo")
         try:
-            if ntype in ("rss", "appia"):
+            if ntype == "appia":
                 anns = self._fetch_rss(company, cfg.get("url") or "https://appiareu.com/feed/",
                                        source_label=cfg.get("source"))
+            elif ntype == "rss":
+                # Sem default aqui: um "url" ausente numa empresa nova cairia
+                # silenciosamente no feed de outra (era o bug antes desta
+                # checagem). "rss" generico exige 'url' explicito no config.
+                url = cfg.get("url")
+                if not url:
+                    raise ValueError(
+                        f"news type 'rss' exige 'url' em companies.json (ticker {company.ticker})")
+                anns = self._fetch_rss(company, url, source_label=cfg.get("source"))
             elif ntype == "aclara":
                 anns = self._fetch_html(company, cfg.get("url") or "https://www.aclara-re.com/news",
                                         parse_aclara_html)
@@ -139,7 +157,7 @@ def _parse_date(value) -> Optional[dt.date]:
     if value is None:
         return None
     if isinstance(value, (int, float)):
-        return dt.datetime.utcfromtimestamp(value).date()
+        return dt.datetime.fromtimestamp(value, tz=dt.timezone.utc).astimezone(_EXCHANGE_TZ).date()
     s = str(value).strip()
     if not s:
         return None
@@ -157,6 +175,24 @@ def _parse_rss_date(value: str) -> Optional[dt.date]:
         return parsedate_to_datetime(value).date()
     except (TypeError, ValueError):
         return None
+
+
+def _dedupe_key(href: str) -> str:
+    """Normaliza o href para dedupe entre parsers HTML: remove o fragmento
+    ('#...') para nao contar duas vezes o mesmo comunicado quando a mesma URL
+    aparece com e sem ancora (ex.: manchete + botao "Read More")."""
+    return href.split("#")[0]
+
+
+def _make_announcement(company: Company, *, date: dt.date, title: str, url: str,
+                        source: str) -> Announcement:
+    """Constroi o Announcement dos parsers HTML (Aclara/Energy Fuels/IMC):
+    todos usam os mesmos defaults de price_sensitive/doc_type."""
+    return Announcement(
+        ticker=company.ticker, exchange=company.exchange, company_name=company.name,
+        date=date, title=title, url=url, price_sensitive=False,
+        doc_type="Comunicado", source=source,
+    )
 
 
 # --- Scraping de sites oficiais (Aclara / Energy Fuels) -----------------
@@ -193,19 +229,18 @@ def parse_aclara_html(html: str, company: Company) -> list[Announcement]:
         title_el = box.select_one(".news-item-title")
         title = title_el.get_text(" ", strip=True) if title_el else box.get_text(" ", strip=True)
         date = _parse_dmy(box.get_text(" ", strip=True))
-        if not title or date is None or href in seen:
+        key = _dedupe_key(href)
+        if not title or date is None or key in seen:
             continue
-        seen.add(href)
-        out.append(Announcement(
-            ticker=company.ticker, exchange=company.exchange, company_name=company.name,
-            date=date, title=title, url=href, price_sensitive=False,
-            doc_type="Comunicado", source="Aclara",
-        ))
+        seen.add(key)
+        out.append(_make_announcement(company, date=date, title=title, url=href, source="Aclara"))
     return out
 
 
 # link de release da Energy Fuels: investors.energyfuels.com/AAAA-MM-DD-titulo
-_EF_REL_RE = re.compile(r"/(\d{4})-(\d{2})-(\d{2})-([^?#/]+)")
+# Ancorado ao path inteiro (nao um .search solto): um asset estatico com data
+# no nome em outro diretorio (ex. /assets/img/2024-01-01-banner.jpg) nao bate.
+_EF_REL_RE = re.compile(r"^/(\d{4})-(\d{2})-(\d{2})-([^?#/]+)$")
 
 
 def parse_energyfuels_html(html: str, company: Company) -> list[Announcement]:
@@ -219,14 +254,15 @@ def parse_energyfuels_html(html: str, company: Company) -> list[Announcement]:
     seen: set[str] = set()
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
-        m = _EF_REL_RE.search(href)
+        path = urlsplit(href).path
+        m = _EF_REL_RE.match(path)
         if not m:
             continue
         try:
             date = dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
         except ValueError:
             continue
-        key = href.split("#")[0]
+        key = _dedupe_key(href)
         if key in seen:
             continue
         url = href if href.startswith("http") else "https://investors.energyfuels.com" + (
@@ -237,11 +273,7 @@ def parse_energyfuels_html(html: str, company: Company) -> list[Announcement]:
         if not title:
             continue
         seen.add(key)
-        out.append(Announcement(
-            ticker=company.ticker, exchange=company.exchange, company_name=company.name,
-            date=date, title=title, url=url, price_sensitive=False,
-            doc_type="Comunicado", source="Energy Fuels",
-        ))
+        out.append(_make_announcement(company, date=date, title=title, url=url, source="Energy Fuels"))
     return out
 
 
@@ -255,10 +287,26 @@ def parse_energyfuels_html(html: str, company: Company) -> list[Announcement]:
 _IMC_READ_MORE_PREFIX = "read more about "
 
 
+_EN_MONTHS = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11,
+    "december": 12,
+}
+_IMC_DATE_RE = re.compile(r"^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$")
+
+
 def _parse_imc_date(text: str) -> Optional[dt.date]:
-    text = (text or "").strip()
+    """Formato "Mes DD, AAAA" (ex.: "August 04, 2026") com nome do mes em
+    ingles fixo, em vez de %B/strptime (dependente do locale do processo,
+    que pode nao ser en_US no runner do CI)."""
+    m = _IMC_DATE_RE.match((text or "").strip())
+    if not m:
+        return None
+    month = _EN_MONTHS.get(m.group(1).lower())
+    if month is None:
+        return None
     try:
-        return dt.datetime.strptime(text, "%B %d, %Y").date()
+        return dt.date(int(m.group(3)), month, int(m.group(2)))
     except ValueError:
         return None
 
@@ -276,7 +324,7 @@ def parse_imc_html(html: str, company: Company) -> list[Announcement]:
         if not aria.lower().startswith(_IMC_READ_MORE_PREFIX):
             continue
         title = aria[len(_IMC_READ_MORE_PREFIX):].strip()
-        key = href.split("#")[0]
+        key = _dedupe_key(href)
         if not title or key in seen:
             continue
 
@@ -292,9 +340,5 @@ def parse_imc_html(html: str, company: Company) -> list[Announcement]:
         seen.add(key)
         url = href if href.startswith("http") else "https://ir.imcrareearths.com" + (
             href if href.startswith("/") else "/" + href)
-        out.append(Announcement(
-            ticker=company.ticker, exchange=company.exchange, company_name=company.name,
-            date=date, title=title, url=url, price_sensitive=False,
-            doc_type="Comunicado", source="IMC Rare Earths",
-        ))
+        out.append(_make_announcement(company, date=date, title=title, url=url, source="IMC Rare Earths"))
     return out

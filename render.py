@@ -36,7 +36,10 @@ def _chg(value: Optional[float]) -> tuple[str, str]:
         return "up", f"&#9650;&nbsp;{_fmt_pct(value)}%"
     if value < -0.05:
         return "down", f"&#9660;&nbsp;{_fmt_pct(value)}%"
-    return "flat", f"0,0%"
+    # usa _fmt_pct (nao um "0,0%" fixo): um valor como 0,05 arredonda pra
+    # "0,1" no mesmo formato usado acima -- fixar o texto criava uma
+    # descontinuidade visual bem na fronteira do limiar.
+    return "flat", f"{_fmt_pct(value)}%"
 
 
 def _fmt_price(value: float) -> str:
@@ -71,7 +74,7 @@ def _build_company(company: Company, anns: list[Announcement], *, selected: bool
         items = []
         for a in groups[(year, month)]:
             chg_class, chg_html = _chg(a.pct_change)
-            has_data = a.pct_change is not None and a.prev_close is not None
+            has_data = a.pct_change is not None and a.prev_close is not None and a.close is not None
             items.append({
                 "date_label": _date_label(a.date),
                 "title": a.title,

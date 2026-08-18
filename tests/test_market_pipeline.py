@@ -18,6 +18,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -171,6 +172,49 @@ class TestLastUpdated(unittest.TestCase):
             U.check_brand(self.doc, stripped)
 
 
+class TestCheckBrand(unittest.TestCase):
+    """check_brand tinha so 2 dos ~7 marcadores efetivamente exercitados por um
+    teste (o token de cor #7C9640 e o span id="last-updated", indiretamente via
+    TestLastUpdated). Cobre aqui os demais: os outros 2 BRAND_TOKENS, a
+    contagem de iframes e os 3 marcadores estruturais restantes."""
+
+    def setUp(self):
+        with open(DASHBOARD, encoding="utf-8") as fh:
+            self.doc = fh.read()
+
+    def test_accepts_identical_document(self):
+        U.check_brand(self.doc, self.doc)
+
+    def test_rejects_dark_gray_token_count_change(self):
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, self.doc.replace("#414042", "#000000", 1))
+
+    def test_rejects_font_name_removal(self):
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, self.doc.replace("Carlito", "Arial", 1))
+
+    def test_rejects_iframe_count_change(self):
+        # remove um <iframe ...>...</iframe> inteiro (o primeiro que o
+        # proprio FRAME_RE encontra) para simular um frame sumindo do doc.
+        m = R.FRAME_RE.search(self.doc)
+        self.assertIsNotNone(m)
+        mutated = self.doc[: m.start()] + self.doc[m.end():]
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, mutated)
+
+    def test_rejects_embedded_image_removal(self):
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, self.doc.replace("data:image/png;base64,", "", 1))
+
+    def test_rejects_chart_frame_class_removal(self):
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, self.doc.replace("chart-frame", "chart", 1))
+
+    def test_rejects_master_toggle_removal(self):
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, self.doc.replace("master-toggle", "toggle", 1))
+
+
 class TestAxisTickLabels(unittest.TestCase):
     """O eixo X só mostra um rótulo por trimestre — nunca força o mês mais
     recente a aparecer se ele não cair nesse ritmo. Isso não afeta os
@@ -234,39 +278,94 @@ class TestDashboardInvariants(unittest.TestCase):
             U.check_frame_invariants(self.frames[spec.frame], spec)
 
 
+class TestNullMonths(unittest.TestCase):
+    """stockAUD do SGQ (frame 3) usa 'null' pra marcar negociacao suspensa.
+
+    'null' e um valor tao legitimo quanto um numero: precisa ser lido pelo
+    parser e contar como mes ja existente (protegido), senao o pipeline
+    reprocessa e sobrescreve silenciosamente um dado curado.
+    """
+
+    def setUp(self):
+        with open(DASHBOARD, encoding="utf-8") as fh:
+            self.frames = R.extract_frames(fh.read())
+        self.js = self.frames[R.BY_TICKER["SGQ"].frame]
+        # nov/24 e dez/24 sao os meses reais marcados null no dashboard hoje.
+        self.assertIn('"nov/24":null', self.js)
+
+    def test_read_js_dict_sees_null_entries(self):
+        d = R.read_js_dict(self.js, "stockAUD")
+        self.assertIn("nov/24", d)
+        self.assertIsNone(d["nov/24"])
+
+    def test_null_month_is_protected_not_writable(self):
+        self.assertFalse(U._is_writable(self.js, "stockAUD", "nov/24"))
+
+    def test_upsert_on_null_month_updates_in_place_no_duplicate(self):
+        new_js, action = R.upsert_dict_entry(self.js, "stockAUD", "nov/24", "0.0500")
+        self.assertEqual(action, "updated")
+        start, end = R._dict_body_span(new_js, "stockAUD")
+        body = new_js[start:end]
+        self.assertEqual(body.count('"nov/24"'), 1)
+        self.assertEqual(R.read_js_dict(new_js, "stockAUD")["nov/24"], 0.05)
+        # dez/24 continua null, intocado.
+        self.assertIsNone(R.read_js_dict(new_js, "stockAUD")["dez/24"])
+
+
 class TestSurgicalEditing(unittest.TestCase):
+    """Mecanica de upsert_dict_entry, testada contra fixtures sinteticas.
+
+    Deliberadamente NAO le comentarios/valores do Dashboard_REE_v6_Q2.html de
+    producao aqui: esse conteudo e editorial e muda com o tempo (ex.: "//
+    aguardando relatório Q2/2026" deixa de ser verdade assim que o relatorio
+    sair). Testes que dependessem do texto exato quebrariam por uma edição de
+    conteúdo sem relação com um bug real no pipeline -- e como a suíte roda
+    antes da coleta/aplicação no workflow, isso bloquearia a atualização
+    diária inteira (mesma classe do bug já corrigido em
+    test_check_brand_rejects_marker_removal). As fixtures abaixo isolam
+    exatamente o mecanismo testado, sem depender de nenhum dado real.
+    """
+
+    FAKE_JS_WITH_COMMENT = (
+        'const sharesMap = {\n'
+        '  "jan/26":1000000,"fev/26":1000000,\n'
+        '  "mar/26":1000000  // provisório — fixture de teste\n'
+        '};\n'
+    )
+    FAKE_JS_CUMINVK = (
+        'const cumInvK = {\n'
+        '  "mai/26":40000,\n'
+        '  "jun/26":45048  // aguardando confirmação (fixture de teste)\n'
+        '};\n'
+    )
 
     def setUp(self):
         with open(DASHBOARD, encoding="utf-8") as fh:
             self.frames = R.extract_frames(fh.read())
 
     def test_insert_never_lands_after_an_inline_comment(self):
-        # frame 3 (SGQ) termina sharesMap com "// provisório — aguardando...".
-        # Inserir na mesma linha comentaria o dado novo — perda silenciosa.
-        js = self.frames[3]
-        self.assertIn("// provisório", js)
-        new_js, action = R.upsert_dict_entry(js, "sharesMap", NEW_MONTH, "3814671589",
-                                             comment="forward-fill")
+        # Inserir na mesma linha de um comentário comentaria o dado novo —
+        # perda silenciosa. mar/26 (última entrada) tem comentário inline.
+        new_js, action = R.upsert_dict_entry(self.FAKE_JS_WITH_COMMENT, "sharesMap",
+                                             NEW_MONTH, "3814671589", comment="forward-fill")
         self.assertEqual(action, "inserted")
         self.assertEqual(R.read_js_dict(new_js, "sharesMap")[NEW_MONTH], 3814671589)
 
     def test_existing_inline_comments_survive(self):
-        js = self.frames[3]
-        new_js, _ = R.upsert_dict_entry(js, "sharesMap", NEW_MONTH, "3814671589")
-        self.assertIn("// provisório — aguardando confirmação de emissões", new_js)
+        new_js, _ = R.upsert_dict_entry(self.FAKE_JS_WITH_COMMENT, "sharesMap",
+                                        NEW_MONTH, "3814671589")
+        self.assertIn("// provisório — fixture de teste", new_js)
 
     def test_update_existing_key_keeps_its_comment(self):
-        js = self.frames[0]
-        self.assertIn("// aguardando relatório Q2/2026", js)
-        new_js, action = R.upsert_dict_entry(js, "cumInvK", "jun/26", "99999")
+        new_js, action = R.upsert_dict_entry(self.FAKE_JS_CUMINVK, "cumInvK", "jun/26", "99999")
         self.assertEqual(action, "updated")
-        self.assertIn("// aguardando relatório Q2/2026", new_js)
+        self.assertIn("// aguardando confirmação (fixture de teste)", new_js)
         self.assertEqual(R.read_js_dict(new_js, "cumInvK")["jun/26"], 99999)
 
     def test_same_value_is_a_no_op(self):
-        js, action = R.upsert_dict_entry(self.frames[0], "cumInvK", "jun/26", "45048")
+        js, action = R.upsert_dict_entry(self.FAKE_JS_CUMINVK, "cumInvK", "jun/26", "45048")
         self.assertEqual(action, "unchanged")
-        self.assertEqual(js, self.frames[0])
+        self.assertEqual(js, self.FAKE_JS_CUMINVK)
 
     def test_vol_points_are_appended_in_order(self):
         js = self.frames[0]
@@ -335,6 +434,58 @@ class TestQualityControl(unittest.TestCase):
         _, flags = F.qc_series("TST", {}, {}, F.MAX_DAILY_PCT, is_fx=False, force=False)
         self.assertIn("no_data", {f["kind"] for f in flags})
 
+    def test_outlier_check_looks_past_an_invalid_neighbor(self):
+        # Se o vizinho imediato tiver close invalido (glitch do provedor), a
+        # checagem de outlier tem que continuar comparando com o vizinho
+        # valido mais proximo -- nao pular a validacao do dia seguinte.
+        fetched = {"2026-07-01": {"close": 4.00, "volume": 1},
+                   "2026-07-02": {"close": 0, "volume": 1},        # glitch (invalido)
+                   "2026-07-03": {"close": 40.00, "volume": 1}}    # +900% vs. 01/07
+        accepted, flags = F.qc_series("TST", fetched, {}, F.MAX_DAILY_PCT,
+                                      is_fx=False, force=False)
+        self.assertNotIn("2026-07-02", accepted)  # invalid_price
+        self.assertNotIn("2026-07-03", accepted)  # outlier vs. 01/07, nao passa direto
+        kinds = {f["kind"] for f in flags}
+        self.assertIn("invalid_price", kinds)
+        self.assertIn("outlier_pct", kinds)
+
+
+class TestStatePersistence(unittest.TestCase):
+    """save_state/load_state de data/market_data.json."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.path = os.path.join(self.tmp, "sub", "market_data.json")
+
+    def test_save_then_load_round_trips(self):
+        state = {"schema": 1, "tickers": {"ARA": {"daily": {}}}}
+        F.save_state(self.path, state)
+        self.assertEqual(F.load_state(self.path), state)
+
+    def test_save_is_atomic_no_leftover_temp_file_on_success(self):
+        F.save_state(self.path, {"a": 1})
+        leftovers = [f for f in os.listdir(os.path.dirname(self.path)) if f != "market_data.json"]
+        self.assertEqual(leftovers, [])
+
+    def test_failed_save_does_not_corrupt_existing_file(self):
+        F.save_state(self.path, {"a": 1})
+        with mock.patch("json.dump", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                F.save_state(self.path, {"a": 2, "b": [1] * 100})
+        # o arquivo original continua intacto -- nunca foi truncado/sobrescrito
+        self.assertEqual(F.load_state(self.path), {"a": 1})
+        leftovers = [f for f in os.listdir(os.path.dirname(self.path)) if f != "market_data.json"]
+        self.assertEqual(leftovers, [], "arquivo temporario orfao nao foi limpo")
+
+    def test_load_corrupted_json_raises_clear_error(self):
+        os.makedirs(os.path.dirname(self.path))
+        with open(self.path, "w", encoding="utf-8") as fh:
+            fh.write('{"schema": 1, "tickers": {')  # JSON truncado
+        with self.assertRaises(RuntimeError) as cm:
+            F.load_state(self.path)
+        self.assertIn("corrompido", str(cm.exception))
+
 
 class TestMonthlyAggregation(unittest.TestCase):
 
@@ -352,6 +503,22 @@ class TestMonthlyAggregation(unittest.TestCase):
         self.assertEqual(R.month_key(2026, 7), "jul/26")
         self.assertEqual(R.month_to_int("jul/26"), 202607)
         self.assertLess(R.month_to_int("dez/25"), R.month_to_int("jan/26"))
+
+    def test_today_brasilia_does_not_use_raw_utc_date(self):
+        # 01:00 UTC de 01/ago ainda e 31/jul as 22:00 em Brasilia (UTC-3) --
+        # se a conversao nao acontecer, today_month_key() acha que ago/26 ja
+        # comecou 2h mais cedo do que deveria (afeta qual mes fica protegido).
+        fake_now = dt.datetime(2026, 8, 1, 1, 0, tzinfo=dt.timezone.utc)
+        with mock.patch("ree_v6.dt.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_now
+            self.assertEqual(R.today_brasilia(), dt.date(2026, 7, 31))
+            self.assertEqual(R.today_month_key(), "jul/26")
+
+        fake_now_later = dt.datetime(2026, 8, 1, 4, 0, tzinfo=dt.timezone.utc)
+        with mock.patch("ree_v6.dt.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_now_later
+            self.assertEqual(R.today_brasilia(), dt.date(2026, 8, 1))
+            self.assertEqual(R.today_month_key(), "ago/26")
 
 
 class TestEndToEndUpdate(unittest.TestCase):
@@ -475,6 +642,19 @@ class TestEndToEndUpdate(unittest.TestCase):
     def test_brand_guard_rejects_visual_drift(self):
         with self.assertRaises(U.UpdateAborted):
             U.check_brand(self.before, self.before.replace("#7C9640", "#FF0000", 1))
+
+
+class TestMainTimeoutHandling(unittest.TestCase):
+    def test_subprocess_timeout_is_caught_cleanly(self):
+        # node --check / render_check.js travado: antes disso, um traceback
+        # cru subia ate o topo (sem log limpo, sem entrada no pipeline.jsonl).
+        import subprocess
+        with mock.patch("update_dashboard.run",
+                        side_effect=subprocess.TimeoutExpired(cmd=["node", "--check", "x.js"], timeout=60)):
+            with self.assertLogs("ree.update", level="ERROR") as cm:
+                code = U.main([])
+        self.assertEqual(code, 1)
+        self.assertTrue(any("nao respondeu" in msg for msg in cm.output))
 
 
 def _block_of(js: str, var: str) -> str:

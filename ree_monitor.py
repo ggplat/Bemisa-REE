@@ -10,6 +10,7 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import datetime as dt
 import json
 import logging
@@ -25,6 +26,11 @@ log = logging.getLogger("ree")
 ROOT = os.path.dirname(os.path.abspath(__file__))
 OUTPUT = os.path.join(ROOT, "docs", "index.html")
 
+# Coleta e I/O-bound (rede) e cada empresa e independente das demais, entao
+# paralelizamos em threads. Numero generoso: nao ha CPU pesada envolvida, o
+# limite real e a rede/anti-bot das fontes, nao a contencao entre threads.
+MAX_WORKERS = 8
+
 # Coletamos apenas publicacoes a partir desta data (janeiro de 2026).
 SINCE = dt.date(2026, 1, 1)
 
@@ -38,44 +44,67 @@ def load_companies(path: str = None) -> list[Company]:
     with open(path, encoding="utf-8") as fh:
         data = json.load(fh)
     companies = [Company(**{k: v for k, v in c.items()}) for c in data["companies"]]
+    # collect_live/render indexam por ticker (sem a bolsa) -- ticker duplicado
+    # entre bolsas diferentes faria uma empresa sobrescrever a outra em
+    # silencio. Falha alto e cedo em vez de deixar a corrupcao acontecer.
+    tickers = [c.ticker for c in companies]
+    dupes = {t for t in tickers if tickers.count(t) > 1}
+    if dupes:
+        raise ValueError(f"tickers duplicados em companies.json: {sorted(dupes)}")
     # ordem alfabetica por ticker no menu, independente da bolsa (companies.json
     # continua agrupado por bolsa so para facilitar a edicao do arquivo)
     return sorted(companies, key=lambda c: c.ticker)
 
 
+def _collect_one(company: Company, prices: "PriceProvider") -> tuple[str, list[Announcement]]:
+    """Coleta + reacao de mercado de uma unica empresa. Nunca levanta -- uma
+    falha aqui nao pode derrubar a coleta das demais (rodando em paralelo)."""
+    log.info("Coletando %s (%s)...", company.ticker, company.exchange)
+    try:
+        source = get_source(company.exchange)
+        anns = source.fetch(company)
+    except Exception as exc:  # noqa: BLE001 - uma empresa nao derruba o resto
+        log.error("Falha ao coletar %s: %s", company.ticker, exc)
+        anns = []
+
+    anns = _filter_since(anns)
+    if anns:
+        dates = [a.date for a in anns]
+        wstart, wend = min(dates), max(dates)
+        for a in anns:
+            try:
+                r = prices.reaction(
+                    company.yf_symbol, a.date, window_start=wstart, window_end=wend)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Preco %s %s: %s", company.ticker, a.date, exc)
+                r = None
+            if r is not None:
+                a.pct_change = r.pct
+                a.prev_close = r.prev_close
+                a.close = r.close
+                a.reaction_date = r.reaction_date
+                a.prev_date = r.prev_date
+    return company.ticker, anns
+
+
 def collect_live(companies: list[Company]) -> dict[str, list[Announcement]]:
-    """Coleta comunicados reais e calcula a reacao de mercado (%)."""
+    """Coleta comunicados reais e calcula a reacao de mercado (%).
+
+    Cada empresa faz I/O de rede independente das demais (fonte de noticias +
+    Yahoo Finance), entao a coleta roda em threads -- sequencial, uma fonte
+    lenta ou em retry/backoff (comum com bloqueio anti-bot) inflava o tempo
+    total em minutos mesmo as outras empresas nao tendo nenhuma dependencia
+    entre si.
+    """
     from prices import PriceProvider  # import tardio: yfinance so e necessario aqui
     prices = PriceProvider()
+
     result: dict[str, list[Announcement]] = {}
-
-    for company in companies:
-        log.info("Coletando %s (%s)...", company.ticker, company.exchange)
-        try:
-            source = get_source(company.exchange)
-            anns = source.fetch(company)
-        except Exception as exc:  # noqa: BLE001 - uma empresa nao derruba o resto
-            log.error("Falha ao coletar %s: %s", company.ticker, exc)
-            anns = []
-
-        anns = _filter_since(anns)
-        if anns:
-            dates = [a.date for a in anns]
-            wstart, wend = min(dates), max(dates)
-            for a in anns:
-                try:
-                    r = prices.reaction(
-                        company.yf_symbol, a.date, window_start=wstart, window_end=wend)
-                except Exception as exc:  # noqa: BLE001
-                    log.warning("Preco %s %s: %s", company.ticker, a.date, exc)
-                    r = None
-                if r is not None:
-                    a.pct_change = r.pct
-                    a.prev_close = r.prev_close
-                    a.close = r.close
-                    a.reaction_date = r.reaction_date
-                    a.prev_date = r.prev_date
-        result[company.ticker] = anns
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(_collect_one, company, prices) for company in companies]
+        for future in concurrent.futures.as_completed(futures):
+            ticker, anns = future.result()
+            result[ticker] = anns
 
     return result
 
@@ -117,7 +146,9 @@ def main(argv: list[str] = None) -> int:
     context = render.build_context(companies, anns_by_ticker, updated=dt.datetime.now())
     html_out = render.render_html(context)
 
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    out_dir = os.path.dirname(args.output)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as fh:
         fh.write(html_out)
 
