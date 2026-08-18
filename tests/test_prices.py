@@ -118,6 +118,30 @@ class TestReaction(unittest.TestCase):
         self.assertGreaterEqual(margin_days, 30,
                                 "margem de busca curta demais pra halts prolongados")
 
+    def test_zero_previous_close_returns_none(self):
+        # prev_close == 0 tornaria a variacao percentual uma divisao por zero;
+        # a funcao descarta a reacao em vez de estourar ou mostrar infinito.
+        rows = [
+            (dt.date(2026, 7, 1), 0.0, 0.0),
+            (dt.date(2026, 7, 2), 0.0, 1.5),
+        ]
+        provider = self._provider(rows)
+        r = provider.reaction("XYZ", dt.date(2026, 7, 2),
+                               window_start=dt.date(2026, 7, 1), window_end=dt.date(2026, 7, 2))
+        self.assertIsNone(r)
+
+    def test_download_exception_returns_none_not_raises(self):
+        # Falha de rede/yfinance no download nao pode propagar: uma empresa
+        # com erro transitorio nao pode derrubar o calculo das demais.
+        provider = PriceProvider()
+        patcher = mock.patch("yfinance.Ticker")
+        mock_ticker = patcher.start()
+        self.addCleanup(patcher.stop)
+        mock_ticker.return_value.history.side_effect = ConnectionError("timeout")
+        r = provider.reaction("XYZ", dt.date(2026, 7, 2),
+                               window_start=dt.date(2026, 7, 1), window_end=dt.date(2026, 7, 2))
+        self.assertIsNone(r)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -172,6 +172,49 @@ class TestLastUpdated(unittest.TestCase):
             U.check_brand(self.doc, stripped)
 
 
+class TestCheckBrand(unittest.TestCase):
+    """check_brand tinha so 2 dos ~7 marcadores efetivamente exercitados por um
+    teste (o token de cor #7C9640 e o span id="last-updated", indiretamente via
+    TestLastUpdated). Cobre aqui os demais: os outros 2 BRAND_TOKENS, a
+    contagem de iframes e os 3 marcadores estruturais restantes."""
+
+    def setUp(self):
+        with open(DASHBOARD, encoding="utf-8") as fh:
+            self.doc = fh.read()
+
+    def test_accepts_identical_document(self):
+        U.check_brand(self.doc, self.doc)
+
+    def test_rejects_dark_gray_token_count_change(self):
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, self.doc.replace("#414042", "#000000", 1))
+
+    def test_rejects_font_name_removal(self):
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, self.doc.replace("Carlito", "Arial", 1))
+
+    def test_rejects_iframe_count_change(self):
+        # remove um <iframe ...>...</iframe> inteiro (o primeiro que o
+        # proprio FRAME_RE encontra) para simular um frame sumindo do doc.
+        m = R.FRAME_RE.search(self.doc)
+        self.assertIsNotNone(m)
+        mutated = self.doc[: m.start()] + self.doc[m.end():]
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, mutated)
+
+    def test_rejects_embedded_image_removal(self):
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, self.doc.replace("data:image/png;base64,", "", 1))
+
+    def test_rejects_chart_frame_class_removal(self):
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, self.doc.replace("chart-frame", "chart", 1))
+
+    def test_rejects_master_toggle_removal(self):
+        with self.assertRaises(U.UpdateAborted):
+            U.check_brand(self.doc, self.doc.replace("master-toggle", "toggle", 1))
+
+
 class TestAxisTickLabels(unittest.TestCase):
     """O eixo X só mostra um rótulo por trimestre — nunca força o mês mais
     recente a aparecer se ele não cair nesse ritmo. Isso não afeta os

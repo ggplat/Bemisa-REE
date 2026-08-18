@@ -14,7 +14,7 @@ comunicado). O dashboard é **gerado automaticamente** e cada linha de notícia
 ```
 ree_monitor.py        -> coleta comunicados + calcula a % + gera docs/index.html
 sources/              -> uma fonte por bolsa (interface comum, plugável)
-  asx.py              -> ASX: markitdigital -> API JSON legada -> RSS (3 fontes)
+  asx.py              -> ASX: página de histórico -> API markitdigital (2 fontes)
   canada.py           -> TSX/CSE/NYSE American: feeds oficiais das empresas (RSS/site) + Yahoo
 prices.py             -> Yahoo Finance (yfinance): variação % close-to-close
 companies.json        -> empresas monitoradas (edite aqui)
@@ -71,10 +71,11 @@ bolsa). Exemplo:
 
 ## Limitações e notas
 
-- **ASX** tem proteção anti-robô. Tentamos 3 fontes em ordem (markitdigital — a que o
-  próprio site asx.com.au usa hoje —, depois a API JSON legada e, por fim, RSS por
-  empresa). A primeira que responder vence. A partir do IP do GitHub Actions costuma
-  funcionar; se uma fonte falhar, a coleta das demais empresas continua normalmente.
+- **ASX** tem proteção anti-robô. Tentamos 2 fontes em ordem (a página de histórico de
+  anúncios, que cobre ~6 meses e é a fonte primária, depois a API markitdigital — a
+  mesma que o site asx.com.au usa hoje, mas limitada aos 5 mais recentes). A primeira
+  que responder vence. A partir do IP do GitHub Actions costuma funcionar; se uma
+  fonte falhar, a coleta das demais empresas continua normalmente.
 - **TSX/CSE/NYSE American** usam os **comunicados oficiais de cada empresa** (só publicações
   da própria empresa, sem ruído de setor): **EFR** (Energy Fuels) via scraping da página de
   press releases em `investors.energyfuels.com/news-releases` (cobre NYSE:UUUU / TSX:EFR);

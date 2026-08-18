@@ -71,7 +71,7 @@ def _parse_iso_date(value: str) -> Optional[dt.date]:
     value = value.strip()
     for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
-            return dt.datetime.strptime(value[:len(value)], fmt).date()
+            return dt.datetime.strptime(value, fmt).date()
         except ValueError:
             continue
     # tenta apenas a parte da data

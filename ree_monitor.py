@@ -44,6 +44,13 @@ def load_companies(path: str = None) -> list[Company]:
     with open(path, encoding="utf-8") as fh:
         data = json.load(fh)
     companies = [Company(**{k: v for k, v in c.items()}) for c in data["companies"]]
+    # collect_live/render indexam por ticker (sem a bolsa) -- ticker duplicado
+    # entre bolsas diferentes faria uma empresa sobrescrever a outra em
+    # silencio. Falha alto e cedo em vez de deixar a corrupcao acontecer.
+    tickers = [c.ticker for c in companies]
+    dupes = {t for t in tickers if tickers.count(t) > 1}
+    if dupes:
+        raise ValueError(f"tickers duplicados em companies.json: {sorted(dupes)}")
     # ordem alfabetica por ticker no menu, independente da bolsa (companies.json
     # continua agrupado por bolsa so para facilitar a edicao do arquivo)
     return sorted(companies, key=lambda c: c.ticker)
@@ -139,7 +146,9 @@ def main(argv: list[str] = None) -> int:
     context = render.build_context(companies, anns_by_ticker, updated=dt.datetime.now())
     html_out = render.render_html(context)
 
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    out_dir = os.path.dirname(args.output)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as fh:
         fh.write(html_out)
 
