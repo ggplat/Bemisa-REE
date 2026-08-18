@@ -158,9 +158,10 @@ Segredos a configurar em _Settings → Secrets and variables → Actions_:
 Sem os segredos o pipeline **continua funcionando** — só registra no log que o
 e-mail não pôde ser enviado. Dado validado não depende de alerta para ser aplicado.
 
-O workflow antigo **"Atualizar Dashboard MCap REE"** foi aposentado (agendamento
-desligado, execução manual preservada): ele cobria as mesmas 5 empresas e
-manteria duas fontes de verdade divergentes.
+O workflow antigo **"Atualizar Dashboard MCap REE"** (e `mcap_dashboard.py`/
+`docs/mcap_dashboard.html`) cobria as mesmas 5 empresas e manteria duas fontes
+de verdade divergentes — foi removido do repositório (ainda recuperável no
+histórico do git se precisar de referência).
 
 ## Camadas de proteção
 
@@ -254,16 +255,18 @@ valores históricos do dashboard vieram dali, haverá um degrau entre meses
 antigos e novos. O `--calibrate` mede esse desvio e reporta — a decisão de
 aceitar ou reprocessar o histórico é sua.
 
-## Publicação (pendência conhecida)
+## Publicação
 
-O pipeline grava `docs/dashboard_ree_v6.html` e commita. A publicação em si fica
-por conta dos workflows de Pages que já existiam — e eles **conflitam entre si**:
-`deploy-pages.yml` publica a raiz do repositório (`path: .`), enquanto
-`update-dashboard.yml` publica só `docs/` (`path: docs`). Dependendo de qual
-rodou por último, a URL do dashboard é
-`<pages>/docs/dashboard_ree_v6.html` ou `<pages>/dashboard_ree_v6.html`.
+O pipeline grava `docs/dashboard_ree_v6.html` e commita; a publicação em si é
+feita pelo job `deploy` do próprio `update-dashboard.yml` (`path: docs`), o
+mesmo que publica o dashboard de comunicados. URL estável:
+`<pages>/docs/dashboard_ree_v6.html`.
 
-Isso é anterior a este pipeline e não foi alterado aqui para não mudar a URL do
-dashboard de comunicados sem combinar antes. Para resolver, escolha **um**
-publicador (o mais simples é manter só `deploy-pages.yml` com `path: docs` e
-remover o job `deploy` de `update-dashboard.yml`).
+Havia um segundo workflow (`deploy-pages.yml`) publicando a raiz do repo
+(`path: .`), que competia com este. Na prática nunca chegou a causar problema
+porque o trigger dele era `push: branches: [main]` e todo o trabalho real
+acontece em `claude/vigilant-babbage-9c6e1o` (`main` está obsoleta) — ou seja,
+esse workflow tinha 0 execuções reais (confirmado via GitHub Actions). Ainda
+assim era um risco latente (dispararia se alguém desse push em `main`) e
+deixava um `index.html` morto na raiz do repo como pegadinha. Removidos os
+dois — só sobra o publicador que já funcionava de verdade.

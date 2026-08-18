@@ -32,8 +32,11 @@ MARKIT_TOKEN = "83ff96335c2d45a094df02a206a39ff4"
 DEFAULT_COUNT = 100  # busca ampla; a filtragem por data (desde jan/2026) e feita depois
 _DATE_RE = re.compile(r"(\d{2}/\d{2}/\d{4})")
 _PAGES_RE = re.compile(r"(\d+)\s*page", re.I)
-# o link da ASX inclui no fim do titulo "<n> pages <tamanho>"; removemos isso
-_TITLE_SUFFIX_RE = re.compile(r"\s+\d+\s+pages?\b.*$", re.I)
+# o link da ASX inclui no fim do titulo "<n> pages <tamanho em KB/MB>"; removemos
+# isso. Ancorado ao fim da string (nao ".*$") e exigindo o tamanho logo depois de
+# "pages" -- senao um titulo legitimo que mencione "N page(s)" no meio do texto
+# (ex. "Presentation covers 5 pages of updates...") teria o resto truncado.
+_TITLE_SUFFIX_RE = re.compile(r"\s+\d+\s+pages?\s+[\d.]+\s*[KMG]B\s*$", re.I)
 
 
 def _clean_title(raw: str) -> str:
@@ -175,4 +178,13 @@ def parse_announcements_html(html: str, company: Company) -> list[Announcement]:
             doc_type=classify(title),
             pages=int(pm.group(1)) if pm else None,
         ))
+    # Se a pagina tem comunicados mas nenhum indicador de sensibilidade em
+    # lugar nenhum, ou o seletor da ASX mudou (silenciosamente zerando o
+    # KPI/filtro do dashboard) ou a empresa genuinamente nao teve nenhum
+    # nesse periodo -- nao dá pra distinguir automaticamente, mas vale logar
+    # pra investigacao manual em vez de falhar calado.
+    if out and not soup.select_one('img[src*="sensitive"], img[alt*="ensitive"]'):
+        log.warning("%s: nenhum indicador de sensibilidade ao preco encontrado na "
+                    "pagina inteira (pode ser normal, ou o seletor da ASX mudou)",
+                    company.ticker)
     return out

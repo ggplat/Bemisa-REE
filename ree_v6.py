@@ -41,8 +41,18 @@ def month_key_of(d: dt.date) -> str:
     return month_key(d.year, d.month)
 
 
+def today_brasilia() -> dt.date:
+    """Data de 'hoje' no horario de Brasilia, nao no fuso do runner (UTC).
+
+    Sem isso, execucoes entre 00h-03h UTC no ultimo dia do mes veem o mes
+    seguinte como "corrente" um pouco cedo demais (o publico do dashboard e
+    brasileiro; a execucao roda em UTC).
+    """
+    return dt.datetime.now(dt.timezone.utc).astimezone(BRASILIA_TZ).date()
+
+
 def today_month_key() -> str:
-    return month_key_of(dt.date.today())
+    return month_key_of(today_brasilia())
 
 
 def month_to_int(mk: str) -> int:
@@ -153,7 +163,12 @@ def set_last_updated(doc: str, when: dt.datetime) -> str:
 
 # ── DICTS JS DENTRO DO SRCDOC ────────────────────────────────────────────────
 
-ENTRY_RE = re.compile(r'"([a-z]{3}/\d{2})"\s*:\s*(-?[\d.]+(?:[eE][-+]?\d+)?)')
+# 'null' marca um mes sem preco (ex.: negociacao suspensa) e e um valor tao
+# valido quanto um numero -- precisa ser reconhecido aqui, senao a entrada
+# fica invisivel pro parser e upsert_dict_entry insere uma chave duplicada
+# no lugar de atualizar/proteger a existente (ver read_js_dict/_is_writable).
+_VALUE_RE = r"(?:null|-?[\d.]+(?:[eE][-+]?\d+)?)"
+ENTRY_RE = re.compile(r'"([a-z]{3}/\d{2})"\s*:\s*(' + _VALUE_RE + r")")
 
 
 def _dict_body_span(js: str, var: str) -> tuple[int, int]:
@@ -171,11 +186,16 @@ def _dict_body_span(js: str, var: str) -> tuple[int, int]:
     return m.end(), end
 
 
-def read_js_dict(js: str, var: str) -> dict[str, float]:
-    """Lê um dict mensal do JS. Comentários `//` são ignorados na leitura."""
+def read_js_dict(js: str, var: str) -> dict[str, float | None]:
+    """Lê um dict mensal do JS. Comentários `//` são ignorados na leitura.
+
+    Uma entrada `null` (mês sem preço, ex. negociação suspensa) vira `None`
+    no dict — mas a chave está presente, então `_is_writable` continua
+    tratando esse mês como já existente (protegido), igual a qualquer outro.
+    """
     start, end = _dict_body_span(js, var)
     body = re.sub(r"//[^\n]*", "", js[start:end])
-    return {k: float(v) for k, v in ENTRY_RE.findall(body)}
+    return {k: (None if v == "null" else float(v)) for k, v in ENTRY_RE.findall(body)}
 
 
 def upsert_dict_entry(js: str, var: str, key: str, value: str,
@@ -189,7 +209,7 @@ def upsert_dict_entry(js: str, var: str, key: str, value: str,
     start, end = _dict_body_span(js, var)
     body = js[start:end]
 
-    existing = re.search(r'("' + re.escape(key) + r'"\s*:\s*)(-?[\d.]+(?:[eE][-+]?\d+)?)', body)
+    existing = re.search(r'("' + re.escape(key) + r'"\s*:\s*)(' + _VALUE_RE + r")", body)
     if existing:
         if existing.group(2) == value:
             return js, "unchanged"

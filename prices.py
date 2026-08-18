@@ -29,14 +29,20 @@ class Reaction:
 
 class PriceProvider:
     def __init__(self) -> None:
-        # symbol -> DataFrame(index=date, columns=[Open, Close]) ordenado por data
-        self._cache: dict[str, "pd.DataFrame"] = {}
+        # (symbol, start, end) -> DataFrame(index=date, columns=[Open, Close])
+        self._cache: dict[tuple[str, dt.date, dt.date], "pd.DataFrame"] = {}
 
     def _history(self, symbol: str, start: dt.date, end: dt.date) -> "pd.DataFrame":
-        if symbol in self._cache:
-            return self._cache[symbol]
-        # margem para garantir pregao anterior e dia da reacao
-        s = start - dt.timedelta(days=10)
+        # A janela pedida faz parte da chave: cachear so por symbol reaproveitava
+        # (errado) o resultado de uma janela anterior menor/diferente.
+        key = (symbol, start, end)
+        if key in self._cache:
+            return self._cache[key]
+        # Margem para garantir pregao anterior e dia da reacao. 45 dias corridos
+        # cobre trading halts prolongados (comuns em mineradoras juniores da
+        # ASX, o publico principal deste dashboard) sem tratar a volta de um
+        # halt longo como se fosse o 1o pregao/estreia.
+        s = start - dt.timedelta(days=45)
         e = end + dt.timedelta(days=4)
         try:
             df = yf.Ticker(symbol).history(start=s.isoformat(), end=e.isoformat(), auto_adjust=False)
@@ -49,7 +55,7 @@ class PriceProvider:
             out = df[["Open", "Close"]].copy()
             out.index = pd.to_datetime(out.index).date
             out = out[~out.index.duplicated(keep="last")].sort_index()
-        self._cache[symbol] = out
+        self._cache[key] = out
         return out
 
     def reaction(self, symbol: str, date: dt.date, *,

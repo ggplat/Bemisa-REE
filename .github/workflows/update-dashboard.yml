@@ -20,6 +20,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,13 +44,22 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if ! git diff --quiet -- docs/index.html; then
-            git add docs/index.html
-            git commit -m "chore: atualizar dashboard ($(date -u +%Y-%m-%d' '%H:%M' UTC'))"
-            git push
-          else
+          if git diff --quiet -- docs/index.html; then
             echo "Sem mudancas no dashboard."
+            exit 0
           fi
+          git add docs/index.html
+          git commit -m "chore: atualizar dashboard ($(date -u +%Y-%m-%d' '%H:%M' UTC'))"
+          # Retry com backoff: o workflow do REE v6 (22:30 UTC) pode ter
+          # acabado de commitar na mesma branch.
+          for delay in 0 2 4 8 16; do
+            [ "$delay" -gt 0 ] && sleep "$delay"
+            git pull --rebase origin "${GITHUB_REF_NAME}" && \
+              git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            echo "push falhou, nova tentativa em ${delay}s..."
+          done
+          echo "não foi possivel publicar o commit" >&2
+          exit 1
 
       - name: Preparar artefato do Pages
         uses: actions/upload-pages-artifact@v3
@@ -59,6 +69,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

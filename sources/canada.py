@@ -6,7 +6,9 @@ A fonte de cada empresa e configurada em companies.json no campo 'news':
   - {"type": "aclara", "url": "https://www.aclara-re.com/news"} -> scraping do site oficial
   - {"type": "imc", "url": ".../news-events/news-releases"} -> press releases oficiais da
     IMC Rare Earths (scraping da pagina de IR em ir.imcrareearths.com; cobre NYSE American: IMC)
-  - {"type": "rss"/"appia", "url": "...", "source": "..."} -> feed RSS do site da empresa
+  - {"type": "appia", "url": "..."} -> feed RSS da Appia (url e opcional, tem default)
+  - {"type": "rss", "url": "...", "source": "..."} -> feed RSS generico; 'url' e
+    OBRIGATORIO (sem default - evita atribuir noticias de uma empresa a outra)
   - {"type": "yahoo", "symbol": "UUUU"} -> feed agregado do Yahoo Finance (yfinance)
 
 Preferimos os comunicados OFICIAIS de cada empresa (RSS proprio ou site), que so trazem
@@ -22,6 +24,7 @@ import re
 from email.utils import parsedate_to_datetime
 from typing import Optional
 from xml.etree import ElementTree as ET
+from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
 
@@ -31,6 +34,11 @@ from . import http_util
 log = logging.getLogger("ree")
 
 MAX_ITEMS = 40
+# TSX/CSE fecham no fuso de Toronto, NYSE American no de Nova York -- os dois
+# seguem o mesmo horario (America/New_York cobre ambos, ET). Convertido antes
+# de extrair a data pra evitar que uma noticia publicada a noite (ET) caia no
+# dia UTC seguinte por engano.
+_EXCHANGE_TZ = ZoneInfo("America/New_York")
 
 _TYPE_LABEL = {
     "STORY": "Notícia", "VIDEO": "Vídeo",
@@ -47,9 +55,18 @@ class CanadaSource(Source):
         cfg = company.news or {}
         ntype = cfg.get("type", "yahoo")
         try:
-            if ntype in ("rss", "appia"):
+            if ntype == "appia":
                 anns = self._fetch_rss(company, cfg.get("url") or "https://appiareu.com/feed/",
                                        source_label=cfg.get("source"))
+            elif ntype == "rss":
+                # Sem default aqui: um "url" ausente numa empresa nova cairia
+                # silenciosamente no feed de outra (era o bug antes desta
+                # checagem). "rss" generico exige 'url' explicito no config.
+                url = cfg.get("url")
+                if not url:
+                    raise ValueError(
+                        f"news type 'rss' exige 'url' em companies.json (ticker {company.ticker})")
+                anns = self._fetch_rss(company, url, source_label=cfg.get("source"))
             elif ntype == "aclara":
                 anns = self._fetch_html(company, cfg.get("url") or "https://www.aclara-re.com/news",
                                         parse_aclara_html)
@@ -139,7 +156,7 @@ def _parse_date(value) -> Optional[dt.date]:
     if value is None:
         return None
     if isinstance(value, (int, float)):
-        return dt.datetime.utcfromtimestamp(value).date()
+        return dt.datetime.fromtimestamp(value, tz=dt.timezone.utc).astimezone(_EXCHANGE_TZ).date()
     s = str(value).strip()
     if not s:
         return None

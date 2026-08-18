@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import render
 from sources import get_source
-from sources.asx import ASXSource, _parse_iso_date, parse_announcements_html
+from sources.asx import ASXSource, _clean_title, _parse_iso_date, parse_announcements_html
 from sources.base import Company
 from sources.classify import classify
 
@@ -111,6 +111,32 @@ class TestASXParsing(unittest.TestCase):
         self.assertEqual(_parse_iso_date("2026-05-19"), dt.date(2026, 5, 19))
         self.assertIsNone(_parse_iso_date(""))
 
+    def test_title_suffix_cleanup_does_not_truncate_legitimate_text(self):
+        # a regex antiga era gulosa (".*$") e apagava tudo a partir da PRIMEIRA
+        # ocorrencia de "N page(s)" -- mesmo quando isso e texto legitimo do
+        # titulo, nao o sufixo real da ASX (que sempre vem com tamanho KB/MB).
+        title = _clean_title("Presentation covers 5 pages of updates and future outlook for the Company")
+        self.assertIn("future outlook", title)
+        # o sufixo real da ASX (numero + "pages" + tamanho KB/MB) continua sendo removido
+        self.assertEqual(_clean_title("Quarterly Activities Report 14\n\t\t pages 13.8MB"),
+                         "Quarterly Activities Report")
+        self.assertEqual(_clean_title("Appendix 3B 2 pages 226.8KB"), "Appendix 3B")
+
+    def test_warns_when_no_price_sensitive_marker_found_anywhere(self):
+        # pagina sem NENHUM indicador de sensibilidade em lugar nenhum -- pode
+        # ser normal (empresa sem PS no periodo) ou o seletor da ASX mudou;
+        # de qualquer forma, tem que logar para investigacao manual.
+        html = """
+        <table>
+          <tr><td>05/06/2026 10:30 AM</td><td></td>
+              <td><a href="/asx/v2/statistics/displayAnnouncement.do?display=pdf&idsId=1">Sem PS</a></td></tr>
+        </table>
+        """
+        with self.assertLogs("ree", level="WARNING") as cm:
+            anns = parse_announcements_html(html, ALV)
+        self.assertEqual(len(anns), 1)
+        self.assertTrue(any("sensibilidade ao preco" in msg for msg in cm.output))
+
 
 class TestClassify(unittest.TestCase):
     def test_labels(self):
@@ -118,6 +144,20 @@ class TestClassify(unittest.TestCase):
         self.assertEqual(classify("Trading Halt"), "Trading Halt")
         self.assertEqual(classify("Investor Presentation"), "Apresentação")
         self.assertEqual(classify("Algo aleatório"), "Comunicado")
+
+    def test_no_false_positive_by_substring(self):
+        # regex sem \b casava por substring dentro de outras palavras
+        self.assertEqual(classify("Company Announces New Headquarters in Sao Paulo"), "Comunicado")
+        self.assertEqual(classify("Appointment of New Board Representative"), "Comunicado")
+        self.assertEqual(classify("Interconnection agreement signed with utility"), "Comunicado")
+
+    def test_still_matches_intended_words_with_suffixes(self):
+        # o \b so bloqueia contaminacao por prefixo colado a outra palavra;
+        # continua casando a palavra em si e variacoes/sufixos legitimos.
+        self.assertEqual(classify("Quarterly Activities Report"), "Trimestral")
+        self.assertEqual(classify("Investor Presentation - August 2026"), "Apresentação")
+        self.assertEqual(classify("High-grade intercept confirmed at depth"), "Exploração")
+        self.assertEqual(classify("Trading halt requested pending announcement"), "Trading Halt")
 
 
 class TestRender(unittest.TestCase):
@@ -165,6 +205,13 @@ class TestRender(unittest.TestCase):
 
 
 class TestCanada(unittest.TestCase):
+    def test_yahoo_timestamp_uses_exchange_timezone_not_utc(self):
+        from sources.canada import _parse_date
+        # 10/06 23:30 no horario de Nova York (bolsa) = 11/06 03:30 UTC.
+        # Sem converter pro fuso da bolsa, a data virava 11/06 por engano.
+        epoch_late_night_et = 1781148600.0  # 2026-06-10T23:30:00-04:00 (EDT)
+        self.assertEqual(_parse_date(epoch_late_night_et), dt.date(2026, 6, 10))
+
     def test_yahoo_news_uses_override_symbol(self):
         from sources.canada import CanadaSource
         # tipo 'yahoo' (agregador) continua disponivel e respeita o symbol override
@@ -215,6 +262,18 @@ class TestCanada(unittest.TestCase):
         self.assertEqual(anns[1].date, dt.date(2026, 6, 11))
         self.assertEqual(anns[0].source, "Exemplo IR")  # rotulo explicito, nao "Exemplo"
         self.assertIn("Exemplo IR", anns[0].tags)
+
+    def test_rss_generic_without_url_returns_empty_not_appia_feed(self):
+        from sources.canada import CanadaSource
+        # 'rss' generico sem 'url' nao pode cair no default da Appia -- tem
+        # que falhar (lista vazia), nunca atribuir noticias de outra empresa.
+        comp = Company(ticker="XYZ", exchange="TSX", name="Exemplo Mining Corp",
+                       yf_symbol="XYZ.TO", company_url="https://money.tmx.com/en/quote/XYZ",
+                       news={"type": "rss"})  # sem 'url'
+        with mock.patch("sources.canada.http_util.get") as fake_get:
+            anns = CanadaSource().fetch(comp)
+        fake_get.assert_not_called()  # nunca deve tentar buscar nada (nem o feed da Appia)
+        self.assertEqual(anns, [])
 
     def test_aclara_html_parsing(self):
         from sources.canada import parse_aclara_html
