@@ -176,6 +176,24 @@ def _parse_rss_date(value: str) -> Optional[dt.date]:
         return None
 
 
+def _dedupe_key(href: str) -> str:
+    """Normaliza o href para dedupe entre parsers HTML: remove o fragmento
+    ('#...') para nao contar duas vezes o mesmo comunicado quando a mesma URL
+    aparece com e sem ancora (ex.: manchete + botao "Read More")."""
+    return href.split("#")[0]
+
+
+def _make_announcement(company: Company, *, date: dt.date, title: str, url: str,
+                        source: str) -> Announcement:
+    """Constroi o Announcement dos parsers HTML (Aclara/Energy Fuels/IMC):
+    todos usam os mesmos defaults de price_sensitive/doc_type."""
+    return Announcement(
+        ticker=company.ticker, exchange=company.exchange, company_name=company.name,
+        date=date, title=title, url=url, price_sensitive=False,
+        doc_type="Comunicado", source=source,
+    )
+
+
 # --- Scraping de sites oficiais (Aclara / Energy Fuels) -----------------
 # datas d/m/aaaa (Aclara) ou textuais; o dia vem antes do mes (uso CA/CL/BR)
 _DMY_RE = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b")
@@ -210,14 +228,11 @@ def parse_aclara_html(html: str, company: Company) -> list[Announcement]:
         title_el = box.select_one(".news-item-title")
         title = title_el.get_text(" ", strip=True) if title_el else box.get_text(" ", strip=True)
         date = _parse_dmy(box.get_text(" ", strip=True))
-        if not title or date is None or href in seen:
+        key = _dedupe_key(href)
+        if not title or date is None or key in seen:
             continue
-        seen.add(href)
-        out.append(Announcement(
-            ticker=company.ticker, exchange=company.exchange, company_name=company.name,
-            date=date, title=title, url=href, price_sensitive=False,
-            doc_type="Comunicado", source="Aclara",
-        ))
+        seen.add(key)
+        out.append(_make_announcement(company, date=date, title=title, url=href, source="Aclara"))
     return out
 
 
@@ -243,7 +258,7 @@ def parse_energyfuels_html(html: str, company: Company) -> list[Announcement]:
             date = dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
         except ValueError:
             continue
-        key = href.split("#")[0]
+        key = _dedupe_key(href)
         if key in seen:
             continue
         url = href if href.startswith("http") else "https://investors.energyfuels.com" + (
@@ -254,11 +269,7 @@ def parse_energyfuels_html(html: str, company: Company) -> list[Announcement]:
         if not title:
             continue
         seen.add(key)
-        out.append(Announcement(
-            ticker=company.ticker, exchange=company.exchange, company_name=company.name,
-            date=date, title=title, url=url, price_sensitive=False,
-            doc_type="Comunicado", source="Energy Fuels",
-        ))
+        out.append(_make_announcement(company, date=date, title=title, url=url, source="Energy Fuels"))
     return out
 
 
@@ -293,7 +304,7 @@ def parse_imc_html(html: str, company: Company) -> list[Announcement]:
         if not aria.lower().startswith(_IMC_READ_MORE_PREFIX):
             continue
         title = aria[len(_IMC_READ_MORE_PREFIX):].strip()
-        key = href.split("#")[0]
+        key = _dedupe_key(href)
         if not title or key in seen:
             continue
 
@@ -309,9 +320,5 @@ def parse_imc_html(html: str, company: Company) -> list[Announcement]:
         seen.add(key)
         url = href if href.startswith("http") else "https://ir.imcrareearths.com" + (
             href if href.startswith("/") else "/" + href)
-        out.append(Announcement(
-            ticker=company.ticker, exchange=company.exchange, company_name=company.name,
-            date=date, title=title, url=url, price_sensitive=False,
-            doc_type="Comunicado", source="IMC Rare Earths",
-        ))
+        out.append(_make_announcement(company, date=date, title=title, url=url, source="IMC Rare Earths"))
     return out

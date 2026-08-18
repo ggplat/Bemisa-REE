@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import threading
 from dataclasses import dataclass
 from typing import Optional
 
@@ -28,16 +29,22 @@ class Reaction:
 
 
 class PriceProvider:
+    """Thread-safe: chamado em paralelo por ree_monitor.collect_live (uma
+    thread por empresa), entao o cache precisa de lock -- ainda que colisao
+    real de chave entre empresas seja rara (janelas de datas diferentes)."""
+
     def __init__(self) -> None:
         # (symbol, start, end) -> DataFrame(index=date, columns=[Open, Close])
         self._cache: dict[tuple[str, dt.date, dt.date], "pd.DataFrame"] = {}
+        self._lock = threading.Lock()
 
     def _history(self, symbol: str, start: dt.date, end: dt.date) -> "pd.DataFrame":
         # A janela pedida faz parte da chave: cachear so por symbol reaproveitava
         # (errado) o resultado de uma janela anterior menor/diferente.
         key = (symbol, start, end)
-        if key in self._cache:
-            return self._cache[key]
+        with self._lock:
+            if key in self._cache:
+                return self._cache[key]
         # Margem para garantir pregao anterior e dia da reacao. 45 dias corridos
         # cobre trading halts prolongados (comuns em mineradoras juniores da
         # ASX, o publico principal deste dashboard) sem tratar a volta de um
@@ -55,7 +62,8 @@ class PriceProvider:
             out = df[["Open", "Close"]].copy()
             out.index = pd.to_datetime(out.index).date
             out = out[~out.index.duplicated(keep="last")].sort_index()
-        self._cache[key] = out
+        with self._lock:
+            self._cache[key] = out
         return out
 
     def reaction(self, symbol: str, date: dt.date, *,

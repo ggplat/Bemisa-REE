@@ -438,6 +438,56 @@ class TestCanada(unittest.TestCase):
         self.assertEqual(anns[0].exchange, "CSE")
 
 
+class TestCollectLive(unittest.TestCase):
+    """collect_live (paralelizado com threads) nao tinha nenhum teste antes."""
+
+    def test_one_company_failing_does_not_affect_others(self):
+        import ree_monitor as M
+        from sources.base import Announcement
+
+        good = Company(ticker="GOOD", exchange="ASX", name="Good Co",
+                       yf_symbol="GOOD.AX", company_url="https://x")
+        bad = Company(ticker="BAD", exchange="ASX", name="Bad Co",
+                      yf_symbol="BAD.AX", company_url="https://x")
+        ann = Announcement(ticker="GOOD", exchange="ASX", company_name="Good Co",
+                           date=dt.date(2026, 6, 1), title="Ok", url="https://x/a.pdf")
+
+        def fake_get_source(exchange):
+            source = mock.Mock()
+            def fetch(company):
+                if company.ticker == "BAD":
+                    raise RuntimeError("fonte fora do ar")
+                return [ann]
+            source.fetch.side_effect = fetch
+            return source
+
+        with mock.patch("ree_monitor.get_source", side_effect=fake_get_source), \
+             mock.patch("prices.PriceProvider") as MockProvider:
+            MockProvider.return_value.reaction.return_value = None
+            result = M.collect_live([good, bad])
+
+        self.assertEqual(result["BAD"], [])  # falha isolada, nao propaga
+        self.assertEqual(len(result["GOOD"]), 1)
+        self.assertEqual(result["GOOD"][0].title, "Ok")
+
+    def test_all_companies_are_collected_in_parallel(self):
+        import ree_monitor as M
+        companies = [Company(ticker=f"T{i}", exchange="ASX", name=f"Co {i}",
+                             yf_symbol=f"T{i}.AX", company_url="https://x") for i in range(12)]
+
+        with mock.patch("ree_monitor.get_source") as mock_get_source, \
+             mock.patch("prices.PriceProvider") as MockProvider:
+            source = mock.Mock()
+            source.fetch.return_value = []
+            mock_get_source.return_value = source
+            MockProvider.return_value.reaction.return_value = None
+            result = M.collect_live(companies)
+
+        # todas as 12 empresas aparecem no resultado, nenhuma perdida na
+        # distribuicao entre threads
+        self.assertEqual(set(result), {c.ticker for c in companies})
+
+
 class TestSourceRouting(unittest.TestCase):
     def test_routing(self):
         from sources.asx import ASXSource as A
