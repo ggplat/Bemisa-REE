@@ -25,6 +25,12 @@
    "series": "BRE"
   },
   {
+   "date": "2026-09-02",
+   "detail": "provedor revisou 3.76 → 3.64 (-3.19%); mantido o valor gravado",
+   "kind": "revision",
+   "series": "BRE"
+  },
+  {
    "date": "2026-08-27",
    "detail": "provedor revisou 0.227 → 0.215 (-5.29%); mantido o valor gravado",
    "kind": "revision",
@@ -43,6 +49,12 @@
    "series": "MEI"
   },
   {
+   "date": "2026-09-02",
+   "detail": "provedor revisou 0.21 → 0.19 (-9.52%); mantido o valor gravado",
+   "kind": "revision",
+   "series": "MEI"
+  },
+  {
    "date": "2026-08-27",
    "detail": "provedor revisou 0.092 → 0.091 (-1.09%); mantido o valor gravado",
    "kind": "revision",
@@ -51,6 +63,12 @@
   {
    "date": "2026-08-28",
    "detail": "provedor revisou 0.09 → 0.091 (+1.11%); mantido o valor gravado",
+   "kind": "revision",
+   "series": "SGQ"
+  },
+  {
+   "date": "2026-09-02",
+   "detail": "provedor revisou 0.081 → 0.08 (-1.23%); mantido o valor gravado",
    "kind": "revision",
    "series": "SGQ"
   },
@@ -69,6 +87,12 @@
   {
    "date": "2026-09-01",
    "detail": "provedor revisou 3.725 → 3.7 (-0.67%); mantido o valor gravado",
+   "kind": "revision",
+   "series": "VMM"
+  },
+  {
+   "date": "2026-09-02",
+   "detail": "provedor revisou 3.58 → 3.53 (-1.40%); mantido o valor gravado",
    "kind": "revision",
    "series": "VMM"
   }
@@ -123,7 +147,8 @@
     "2026-08-28": 0.71951,
     "2026-08-31": 0.7163,
     "2026-09-01": 0.7173,
-    "2026-09-02": 0.714694
+    "2026-09-02": 0.71471,
+    "2026-09-03": 0.716692
    },
    "monthly": {
     "ago/26": {
@@ -143,8 +168,8 @@
     },
     "set/26": {
      "closed": false,
-     "mean": 0.715997,
-     "n_days": 2
+     "mean": 0.716234,
+     "n_days": 3
     }
    },
    "yf_symbol": "AUDUSD=X"
@@ -198,7 +223,8 @@
     "2026-08-28": 0.721943,
     "2026-08-31": 0.719471,
     "2026-09-01": 0.72197,
-    "2026-09-02": 0.719575
+    "2026-09-02": 0.71973,
+    "2026-09-03": 0.722679
    },
    "monthly": {
     "ago/26": {
@@ -218,8 +244,8 @@
     },
     "set/26": {
      "closed": false,
-     "mean": 0.720773,
-     "n_days": 2
+     "mean": 0.72146,
+     "n_days": 3
     }
    },
    "yf_symbol": "CADUSD=X"
@@ -453,8 +479,13 @@
     },
     "2026-09-01": {
      "close": 3.76,
-     "vol_usd": 114643.29,
-     "volume": 42232
+     "vol_usd": 114827.88,
+     "volume": 42300
+    },
+    "2026-09-02": {
+     "close": 3.48,
+     "vol_usd": 460551.95,
+     "volume": 183878
     }
    },
    "frame": 0,
@@ -477,8 +508,8 @@
     },
     "set/26": {
      "closed": false,
-     "mean": 3.76,
-     "n_days": 1
+     "mean": 3.62,
+     "n_days": 2
     }
    },
    "yf_symbol": "ARA.TO"
@@ -725,6 +756,11 @@
      "close": 3.76,
      "vol_usd": 393843.28,
      "volume": 146560
+    },
+    "2026-09-03": {
+     "close": 3.71,
+     "vol_usd": 43922.82,
+     "volume": 16519
     }
    },
    "frame": 1,
@@ -747,8 +783,8 @@
     },
     "set/26": {
      "closed": false,
-     "mean": 3.845,
-     "n_days": 2
+     "mean": 3.8,
+     "n_days": 3
     }
    },
    "yf_symbol": "BRE.AX"
@@ -995,6 +1031,11 @@
      "close": 0.21,
      "vol_usd": 27736.14,
      "volume": 184802
+    },
+    "2026-09-03": {
+     "close": 0.197,
+     "vol_usd": 60723.83,
+     "volume": 430091
     }
    },
    "frame": 2,
@@ -1017,8 +1058,8 @@
     },
     "set/26": {
      "closed": false,
-     "mean": 0.2075,
-     "n_days": 2
+     "mean": 0.204,
+     "n_days": 3
     }
    },
    "yf_symbol": "MEI.AX"
@@ -1265,6 +1306,11 @@
      "close": 0.081,
      "vol_usd": 181283.78,
      "volume": 3131510
+    },
+    "2026-09-03": {
+     "close": 0.08,
+     "vol_usd": 34176.92,
+     "volume": 596088
     }
    },
    "frame": 3,
@@ -1287,8 +1333,8 @@
     },
     "set/26": {
      "closed": false,
-     "mean": 0.0825,
-     "n_days": 2
+     "mean": 0.081667,
+     "n_days": 3
     }
    },
    "yf_symbol": "SGQ.AX"
@@ -1535,6 +1581,11 @@
      "close": 3.58,
      "vol_usd": 136191.96,
      "volume": 53229
+    },
+    "2026-09-03": {
+     "close": 3.52,
+     "vol_usd": 344608.45,
+     "volume": 136600
     }
    },
    "frame": 4,
@@ -1557,12 +1608,12 @@
     },
     "set/26": {
      "closed": false,
-     "mean": 3.6525,
-     "n_days": 2
+     "mean": 3.608333,
+     "n_days": 3
     }
    },
    "yf_symbol": "VMM.AX"
   }
  },
- "updated_utc": "2026-09-02T00:26:17Z"
+ "updated_utc": "2026-09-03T00:32:18Z"
 }
