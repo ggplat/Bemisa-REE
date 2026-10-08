@@ -115,6 +115,12 @@
    "series": "BRE"
   },
   {
+   "date": "2026-10-07",
+   "detail": "provedor revisou 3.37 → 3.33 (-1.19%); mantido o valor gravado",
+   "kind": "revision",
+   "series": "BRE"
+  },
+  {
    "date": "2026-08-27",
    "detail": "provedor revisou 0.227 → 0.215 (-5.29%); mantido o valor gravado",
    "kind": "revision",
@@ -220,6 +226,12 @@
    "date": "2026-10-01",
    "detail": "variação de +47.1% vs. 2026-09-30 (0.17 → 0.25); limite 20.0%",
    "kind": "outlier_pct",
+   "series": "MEI"
+  },
+  {
+   "date": "2026-10-07",
+   "detail": "provedor revisou 0.255 → 0.25 (-1.96%); mantido o valor gravado",
+   "kind": "revision",
    "series": "MEI"
   },
   {
@@ -467,6 +479,12 @@
    "detail": "provedor revisou 3.91 → 3.81 (-2.56%); mantido o valor gravado",
    "kind": "revision",
    "series": "VMM"
+  },
+  {
+   "date": "2026-10-07",
+   "detail": "provedor revisou 3.85 → 3.8 (-1.30%); mantido o valor gravado",
+   "kind": "revision",
+   "series": "VMM"
   }
  ],
  "fx": {
@@ -545,7 +563,8 @@
     "2026-10-02": 0.69287,
     "2026-10-05": 0.69518,
     "2026-10-06": 0.69673,
-    "2026-10-07": 0.69847
+    "2026-10-07": 0.69818,
+    "2026-10-08": 0.69701
    },
    "monthly": {
     "ago/26": {
@@ -565,8 +584,8 @@
     },
     "out/26": {
      "closed": false,
-     "mean": 0.695564,
-     "n_days": 5
+     "mean": 0.695757,
+     "n_days": 6
     },
     "set/26": {
      "closed": true,
@@ -650,7 +669,7 @@
     "2026-10-02": 0.703215,
     "2026-10-05": 0.701562,
     "2026-10-06": 0.70108,
-    "2026-10-07": 0.703581
+    "2026-10-07": 0.703621
    },
    "monthly": {
     "ago/26": {
@@ -670,7 +689,7 @@
     },
     "out/26": {
      "closed": false,
-     "mean": 0.702379,
+     "mean": 0.702387,
      "n_days": 5
     },
     "set/26": {
@@ -1030,8 +1049,13 @@
     },
     "2026-10-06": {
      "close": 3.54,
-     "vol_usd": 177914.46,
-     "volume": 71687
+     "vol_usd": 177946.72,
+     "volume": 71700
+    },
+    "2026-10-07": {
+     "close": 3.35,
+     "vol_usd": 165805.26,
+     "volume": 70342
     }
    },
    "frame": 0,
@@ -1054,8 +1078,8 @@
     },
     "out/26": {
      "closed": false,
-     "mean": 3.5525,
-     "n_days": 4
+     "mean": 3.512,
+     "n_days": 5
     },
     "set/26": {
      "closed": true,
@@ -1432,6 +1456,11 @@
      "close": 3.37,
      "vol_usd": 333351.37,
      "volume": 141620
+    },
+    "2026-10-08": {
+     "close": 3.27,
+     "vol_usd": 779455.42,
+     "volume": 341983
     }
    },
    "frame": 1,
@@ -1454,8 +1483,8 @@
     },
     "out/26": {
      "closed": false,
-     "mean": 3.516,
-     "n_days": 5
+     "mean": 3.475,
+     "n_days": 6
     },
     "set/26": {
      "closed": true,
@@ -1827,6 +1856,11 @@
      "close": 0.255,
      "vol_usd": 4757441.62,
      "volume": 26710716
+    },
+    "2026-10-08": {
+     "close": 0.245,
+     "vol_usd": 3436632.94,
+     "volume": 20124637
     }
    },
    "frame": 2,
@@ -1849,8 +1883,8 @@
     },
     "out/26": {
      "closed": false,
-     "mean": 0.25,
-     "n_days": 4
+     "mean": 0.249,
+     "n_days": 5
     },
     "set/26": {
      "closed": true,
@@ -2225,8 +2259,13 @@
     },
     "2026-10-07": {
      "close": 0.062,
-     "vol_usd": 194199.69,
-     "volume": 4484449
+     "vol_usd": 663576.58,
+     "volume": 15329640
+    },
+    "2026-10-08": {
+     "close": 0.061,
+     "vol_usd": 248488.22,
+     "volume": 5844360
     }
    },
    "frame": 3,
@@ -2249,8 +2288,8 @@
     },
     "out/26": {
      "closed": false,
-     "mean": 0.064,
-     "n_days": 5
+     "mean": 0.0635,
+     "n_days": 6
     },
     "set/26": {
      "closed": true,
@@ -2627,6 +2666,11 @@
      "close": 3.85,
      "vol_usd": 2015737.66,
      "volume": 749593
+    },
+    "2026-10-08": {
+     "close": 3.64,
+     "vol_usd": 1329083.65,
+     "volume": 523856
     }
    },
    "frame": 4,
@@ -2649,8 +2693,8 @@
     },
     "out/26": {
      "closed": false,
-     "mean": 3.842,
-     "n_days": 5
+     "mean": 3.808333,
+     "n_days": 6
     },
     "set/26": {
      "closed": true,
@@ -2661,5 +2705,5 @@
    "yf_symbol": "VMM.AX"
   }
  },
- "updated_utc": "2026-10-07T01:45:07Z"
+ "updated_utc": "2026-10-08T02:12:51Z"
 }
