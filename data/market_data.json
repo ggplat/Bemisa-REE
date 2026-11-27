@@ -133,6 +133,12 @@
    "series": "BRE"
   },
   {
+   "date": "2026-11-26",
+   "detail": "provedor revisou 1.845 → 1.865 (+1.08%); mantido o valor gravado",
+   "kind": "revision",
+   "series": "BRE"
+  },
+  {
    "date": "2026-10-13",
    "detail": "provedor revisou 0.225 → 0.23 (+2.22%); mantido o valor gravado",
    "kind": "revision",
@@ -249,6 +255,12 @@
   {
    "date": "2026-11-25",
    "detail": "provedor revisou 0.217 → 0.215 (-0.92%); mantido o valor gravado",
+   "kind": "revision",
+   "series": "MEI"
+  },
+  {
+   "date": "2026-11-26",
+   "detail": "provedor revisou 0.237 → 0.24 (+1.27%); mantido o valor gravado",
    "kind": "revision",
    "series": "MEI"
   },
@@ -595,7 +607,8 @@
     "2026-11-23": 0.66409,
     "2026-11-24": 0.662972,
     "2026-11-25": 0.659413,
-    "2026-11-26": 0.66454
+    "2026-11-26": 0.66279,
+    "2026-11-27": 0.666045
    },
    "monthly": {
     "ago/26": {
@@ -615,8 +628,8 @@
     },
     "nov/26": {
      "closed": false,
-     "mean": 0.681037,
-     "n_days": 20
+     "mean": 0.68024,
+     "n_days": 21
     },
     "out/26": {
      "closed": true,
@@ -743,7 +756,8 @@
     "2026-11-23": 0.697408,
     "2026-11-24": 0.696122,
     "2026-11-25": 0.700628,
-    "2026-11-26": 0.70318
+    "2026-11-26": 0.703453,
+    "2026-11-27": 0.702198
    },
    "monthly": {
     "ago/26": {
@@ -763,8 +777,8 @@
     },
     "nov/26": {
      "closed": false,
-     "mean": 0.704922,
-     "n_days": 20
+     "mean": 0.704805,
+     "n_days": 21
     },
     "out/26": {
      "closed": true,
@@ -1303,8 +1317,13 @@
     },
     "2026-11-25": {
      "close": 2.09,
-     "vol_usd": 282200.84,
-     "volume": 192719
+     "vol_usd": 282319.45,
+     "volume": 192800
+    },
+    "2026-11-26": {
+     "close": 2.37,
+     "vol_usd": 98200.45,
+     "volume": 58902
     }
    },
    "frame": 0,
@@ -1327,8 +1346,8 @@
     },
     "nov/26": {
      "closed": false,
-     "mean": 2.231667,
-     "n_days": 18
+     "mean": 2.238947,
+     "n_days": 19
     },
     "out/26": {
      "closed": true,
@@ -1890,6 +1909,11 @@
      "close": 1.845,
      "vol_usd": 1792991.91,
      "volume": 1462382
+    },
+    "2026-11-27": {
+     "close": 1.945,
+     "vol_usd": 1023644.63,
+     "volume": 790180
     }
    },
    "frame": 1,
@@ -1912,8 +1936,8 @@
     },
     "nov/26": {
      "closed": false,
-     "mean": 1.814526,
-     "n_days": 19
+     "mean": 1.82105,
+     "n_days": 20
     },
     "out/26": {
      "closed": true,
@@ -2470,6 +2494,11 @@
      "close": 0.237,
      "vol_usd": 3926825.22,
      "volume": 24932860
+    },
+    "2026-11-27": {
+     "close": 0.237,
+     "vol_usd": 1102441.28,
+     "volume": 6983989
     }
    },
    "frame": 2,
@@ -2492,8 +2521,8 @@
     },
     "nov/26": {
      "closed": false,
-     "mean": 0.226474,
-     "n_days": 19
+     "mean": 0.227,
+     "n_days": 20
     },
     "out/26": {
      "closed": true,
@@ -3053,8 +3082,13 @@
     },
     "2026-11-26": {
      "close": 0.058,
-     "vol_usd": 117324.09,
-     "volume": 3043954
+     "vol_usd": 144133.41,
+     "volume": 3749391
+    },
+    "2026-11-27": {
+     "close": 0.058,
+     "vol_usd": 101001.16,
+     "volume": 2614537
     }
    },
    "frame": 3,
@@ -3077,8 +3111,8 @@
     },
     "nov/26": {
      "closed": false,
-     "mean": 0.057158,
-     "n_days": 19
+     "mean": 0.0572,
+     "n_days": 20
     },
     "out/26": {
      "closed": true,
@@ -3637,9 +3671,14 @@
      "volume": 1007972
     },
     "2026-11-26": {
-     "close": 2.735,
-     "vol_usd": 939056.46,
-     "volume": 516670
+     "close": 2.73,
+     "vol_usd": 1517823.77,
+     "volume": 838847
+    },
+    "2026-11-27": {
+     "close": 2.78,
+     "vol_usd": 1258336.01,
+     "volume": 679592
     }
    },
    "frame": 4,
@@ -3662,8 +3701,8 @@
     },
     "nov/26": {
      "closed": false,
-     "mean": 2.897105,
-     "n_days": 19
+     "mean": 2.891,
+     "n_days": 20
     },
     "out/26": {
      "closed": true,
@@ -3679,5 +3718,5 @@
    "yf_symbol": "VMM.AX"
   }
  },
- "updated_utc": "2026-11-26T04:17:45Z"
+ "updated_utc": "2026-11-27T04:27:08Z"
 }
